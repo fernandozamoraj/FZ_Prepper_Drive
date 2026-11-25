@@ -24,7 +24,8 @@ FS=$(diskutil info "$DRIVE" 2>/dev/null | awk -F: '/File System Personality/{sub
 
 EXCLUDES=(--exclude '.venv/' --exclude 'build/' --exclude '*.bak-*' --exclude '.DS_Store' --exclude '._*'
   --exclude 'download*.log' --exclude 'routing/logs/' --exclude 'routing/*.log' --exclude 'gh.lock'
-  --exclude 'bible/src/' --exclude 'drive-root/' --exclude '*.tmp')
+  --exclude 'bible/src/' --exclude 'drive-root/' --exclude '*.tmp'
+  --exclude '.git/' --exclude '*.part' --exclude 'scripts/.venv/' --exclude 'routing/states.geojson')
 
 need_gb=$(( $(du -sk "$KIT" | cut -f1) / 1024 / 1024 - $(du -sk "$KIT/build" 2>/dev/null | cut -f1 || echo 0) / 1024 / 1024 ))
 free_gb=$(( $(df -k "$DRIVE" | awk 'NR==2{print $4}') / 1024 / 1024 ))

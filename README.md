@@ -1,124 +1,119 @@
-# Offline prepper kit (v1.11.0)
+# FZ Prepper Drive (offline prepper kit v1.12.0)
 
-v1.11.0: **one drive that runs on Windows and Mac**, for anyone: plug it in, double-click
-`Start Prepper Kit (Windows).bat` or `Start Prepper Kit (Mac).command`, and the browser opens the Home page.
-Nothing is installed and no internet is needed: portable Python, Java and kiwix-serve for Windows (64-bit),
-Apple Silicon and Intel Macs are in `runtime/` (~720 MB). `HOW TO START.html` on the drive explains the steps and the one-time security prompts in plain words.
+An offline "internet in a box" on one USB drive that runs on **Windows and Mac** computers with nothing installed:
 
-## Make the drive (from this Mac)
-```bash
-~/offline-prepper-kit/make-drive.sh                 # copies to /Volumes/PKNY_256 (must be exFAT)
-~/offline-prepper-kit/make-drive.sh --no-libraries  # quick: everything but kiwix/*.zim
-```
-Re-run after any change; it copies only what changed. Leaves out `build/`, `.venv/`, backups and logs.
-- `bin/kitplatform.py` picks this computer's programs from `runtime/` (falls back to installed ones), starts the
-  library, and stops everything. `bin/intranet.py` is the one entry point on every system (launchers call it with `--open`).
-- Testing on other ports: `PREPPER_KIT_TEST_PORTS=9000,9080,9090 python3 bin/intranet.py`.
+- **Library:** offline Wikipedia (with images), WikiMed, iFixit, Wikivoyage, Stack Exchange (DIY, cooking, gardening,
+  electronics, outdoors, ham radio...), survival and medical libraries, programming docs, served by Kiwix.
+- **Holy Bible (KJV)** with reference and phrase search.
+- **Whole-US street map** in the browser, with **offline driving directions** and town search.
+- **PDF guides:** US military survival manuals, FEMA, EPA water, USDA home canning, Hesperian health books.
+- One **Home page** (http://localhost:8000) that ties it all together; phones on the same Wi-Fi can use it too.
 
-v1.10.0: **maps and library link both ways.**
-- Library → map: Wikipedia/Wikivoyage articles with a US location get **📍 Show on map** in the header, and their
-  coordinate links (Wikivoyage's numbered listing markers too) open the offline map at that spot with a pin.
-- Map → library: click a town, landmark or park name on the map for **Wikipedia** / **Wikivoyage** links
-  (the right state's article, e.g. Springfield, Missouri vs Illinois) and **Directions to here**.
+**This repository holds only the code.** It doesn't include the content (about 180 GB of libraries, maps, PDFs and
+routing data) or the third-party programs. The scripts download and build all of that again.
 
-v1.9.0: **header bar on every page**: ⌂ Home · Library · Bible · Maps, with the current page highlighted.
-It's on the hub, Bible Search, the library home page, every library article (Wikipedia, Bible chapters…),
-and the map. One file, `home/nav.js`; the library gets it through `serve.sh` (Kiwix resource overrides).
-PDF guides open in a new tab, so the intranet tab is still there behind them.
+## Quick start: rebuild everything
 
-v1.8.0: **Holy Bible (KJV)**. In the Home Intranet (`runhomeintra`), the **Holy Bible** card opens
-**Bible Search** (`/bible`): type a reference (`John 3:16`, `Ps 23`, `1 Cor 13:4-8`, `Matt 5:3-12; Luke 6:20-23`)
-or words (`love one another`), an exact phrase (`"the lord is my shepherd"`), or a word start (`bless*`).
-Filter by Old/New Testament or one book; copy verses. The Bible is also a library (`kiwix/bible_en_kjv_*.zim`):
-browse book → chapter, and it is in the library search (group **Bible**).
-
-## Bible
-- `bible/build-bible.sh`: downloads the public-domain KJV text from eBible.org once (`bible/src/`), then builds
-  `kiwix/bible_en_kjv_<yyyy-mm>.zim` (6.9 MB) and `home/kjv.json` (4.3 MB, used by `/bible`). Re-run any time.
-- Library search indexes one entry per verse, so phrase searches land on the verse (Psalms 23:1), which opens
-  the chapter with that verse highlighted.
-- Restart `runhomeintra` after rebuilding so the library picks up the new file.
-
-## Start everything: `runhomeintra`
-```bash
-runhomeintra         # or: python3 -I ~/offline-prepper-kit/bin/intranet.py
-```
-Opens the **Home Intranet** hub at `http://localhost:8000` (phones: `http://<this-mac-ip>:8000`): one search box,
-links to the library (8080) and maps (8090) with running/not-running status, and the PDF guides.
-It starts the library and maps itself unless they're already running; Ctrl+C stops everything it started.
-
-v1.7.0: library home page (`home/index.html`, loaded by `serve.sh` with `--customIndex`) replaces Kiwix's own.
-One search box searches article text across **all** libraries or a group (Wikipedia, Medical, Survival, Fix & build,
-Food & garden, Ham radio, Travel, Textbooks, Programming), with title suggestions while typing. Links like
-`http://localhost:8080/#q=splint&in=medical` work as bookmarks. Kiwix reads this page only at startup: restart
-the server after editing it.
-
-v1.6.0: **offline driving directions** on the map page (whole US, car). Open the map, press
-**Directions**, type a town (e.g. `Tulsa` or `Springfield, MO`) or click the map for A and B.
-You get the fastest route plus up to 2 alternates, miles and drive time, a turn list
-(with highway numbers, e.g. "Turn left, then follow I-40, 117 mi"), and a **Print** button for a paper copy.
-
-## Offline directions
-- `startmaps` starts the router automatically (GraphHopper 11.1, ready in seconds, up to ~2 GB RAM) when
-  `routing/graph-us/` exists. Phones use it through the same address as the map.
-- `routing/build-routing.sh`: builds `routing/graph-us/` (8.5 GB) from `build/us.osm.pbf` (~45 min on this Mac, ~18 GB RAM). Re-run after updating the OSM data.
-- `routing/build-places.sh`: rebuilds `map-viewer/places.json` (134k US cities/towns/villages with state) for the search box.
-- `routing/start-router.sh`: runs the router alone (127.0.0.1:8989). Log: `routing/router.log`.
-- Needs Java 21 (`brew install openjdk@21`). Car only; addresses aren't searchable, only towns, coordinates (`35.2, -97.4`) or map clicks.
-- Keep `build/us.osm.pbf` if you want to rebuild routing later (do not delete `build/` entirely).
-
-v1.4.0: programming libraries (`download-programming.sh`, ~4.5 GB): DevDocs for Python, JavaScript, HTML, CSS, Node, Bash, Git, SQLite, PostgreSQL and Lua; freeCodeCamp; Wikibooks (programming textbooks plus first aid, cooking, gardening and more).
-
-v1.3.0: offline street map for TX, NM, OK, AR, LA + CA, OR, NV, AZ, viewable in any browser (`startmaps`).
-
-## Offline map (browser, no app)
-```bash
-startmaps            # or: python3 ~/offline-prepper-kit/bin/serve-maps.py
-```
-Opens `http://localhost:8090` and prints the address for phones on the same Wi-Fi.
-- `maps/texas-california-region.pmtiles`: the map (vector tiles, zoom 0–14, OpenMapTiles schema)
-- `map-viewer/`: MapLibre page, OSM Bright style, fonts and icons, all local (no internet needed)
-- `bin/serve-maps.py`: small Python server with Range-request support (PMTiles needs it)
-
-**Rebuild the map** (e.g. with newer data or more states): put state `.osm.pbf` files in `maps/`, then
-```bash
-cd ~/offline-prepper-kit
-osmium merge maps/*.osm.pbf -o build/region.osm.pbf --overwrite
-cd build && /opt/homebrew/opt/openjdk@21/bin/java -Xmx12g -jar ../bin/planetiler.jar \
-  --osm-path=region.osm.pbf --download --download_dir=sources \
-  --output=../maps/texas-california-region.pmtiles --force
-```
-Needs `brew install openjdk@21 osmium-tool`. `build/` can be deleted afterwards except `build/us.osm.pbf`, which the routing build reads.
-
-v1.2.0: added `serve.sh` + `bin/kiwix-serve` (kiwix-tools 3.8.2, Apple Silicon) to share the libraries to phones on the same Wi-Fi.
-
-## Share to phones and other devices
-```bash
-~/offline-prepper-kit/serve.sh
-```
-It prints the address to open on other devices (e.g. `http://192.168.1.208:8080`). Stop with Ctrl+C.
-Works without internet as long as the Wi-Fi router has power. Files still downloading are skipped; restart the server after Wikipedia finishes to include it.
-
-v1.1.0: added `guides/` PDFs (`download-pdfs.sh`): FM 21-76 + Multi-Service + USMC survival manuals, FEMA *Are You Ready*, EPA water disinfection, USDA home canning guide, Hesperian *Where There Is No Doctor / Dentist*, *A Book for Midwives*, *Community Guide to Environmental Health* (~133 MB, 119 PDFs).
-
-Offline Wikipedia, medical/survival references and Texas-area maps. About 136 GB.
-
-## Contents
-| Folder | What | Open with |
+| | macOS (Apple Silicon or Intel) | Windows 10/11 (64-bit) |
 |---|---|---|
-| `kiwix/` | Wikipedia (with images), WikiMed, iFixit, Wikivoyage, Stack Exchange (DIY, cooking, gardening, electronics, outdoors, ham radio...), TruePrepper, zimgit survival libraries (water, medicine, knots, food prep, post-disaster) | **Kiwix Desktop** (Mac App Store or kiwix.org) → *Open file* |
-| `maps/` | OpenStreetMap extracts: Texas, New Mexico, Oklahoma, Arkansas, Louisiana (`.osm.pbf`) | QGIS, or later a Pi map server. For offline phone/Mac navigation, use the Organic Maps app and download TX + neighbors inside it |
+| Everything, start to finish | `./regenerate-all.sh` | `regenerate-all.bat` |
+| One step | `./kit.sh <command>` | `kit.bat <command>` |
+| Copy to a USB drive | `./make-drive.sh /Volumes/NAME` | `make-drive.bat E:\` |
 
-## Download / resume
 ```bash
-cd ~/offline-prepper-kit && nohup caffeinate -i ./download.sh >/dev/null 2>&1 &
+git clone https://github.com/fernandozamoraj/FZ_Prepper_Drive.git offline-prepper-kit
 ```
-Progress: `tail -f ~/offline-prepper-kit/download.log`. Safe to re-run; finished files are skipped and partial ones resume.
 
-## Copy to the 256 GB thumb drive
-1. Format it **exFAT** (Disk Utility → Erase → ExFAT). FAT32 can't hold the 119 GB Wikipedia file. Formatting erases the drive.
-2. `rsync -a --progress ~/offline-prepper-kit/ /Volumes/<DRIVE>/offline-prepper-kit/`
-3. Keep the Mac copy as a backup.
+```bash
+cd offline-prepper-kit && ./regenerate-all.sh
+```
 
-## Later: Raspberry Pi hotspot
-Pi 5 (4–8 GB) + official power supply + 32 GB microSD + case (~$100). Install Internet-in-a-Box or `kiwix-serve`, plug in the thumb drive, and phones join its Wi-Fi.
+On Windows, open **Command Prompt** in the cloned folder and run `regenerate-all.bat`. Every step can be
+re-run safely: finished work is skipped and interrupted downloads resume, so if anything stops, just run it again.
+
+The first command downloads a portable Python (~30 MB) into `runtime/` when needed. That is the only bootstrap,
+and it uses the `curl` and `tar` built into macOS and Windows 10+.
+
+## What you need (manual)
+
+1. **Disk:** about **200 GB free** for the kit plus **~20 GB** for build files (`build/`). Use an internal disk
+   or a fast SSD; the map and routing builds do a lot of random reads and writes.
+2. **Memory:** **24 GB+ RAM** recommended. The map build uses a 14 GB Java heap and the routing build an 18 GB heap
+   (lower them with `--xmx`, e.g. `kit.sh build-map --xmx 10g`; too low fails with OutOfMemoryError).
+3. **Internet** for the downloads (Wikipedia alone is ~120 GB) and **time**: a day or more on a typical
+   connection; the whole-US map takes ~1–3 h and the routing graph ~1–2 h on a recent machine.
+4. **Intel Macs only:** `brew install osmium-tool` before `build-places` (the Python osmium package has no current
+   Intel Mac build). Apple Silicon Macs and Windows need nothing extra.
+5. **The USB drive** (256 GB or more) must be formatted **exFAT** so both Windows and Macs can read it and it can
+   hold files over 4 GB. Formatting erases the drive:
+   - Mac: Disk Utility → select the drive → Erase → Format **ExFAT**.
+   - Windows: File Explorer → right-click the drive → Format… → File system **exFAT**.
+
+## Commands
+
+| Command | What it makes | Notes |
+|---|---|---|
+| `setup` | `runtime/` portable Python 3.12, Temurin Java 21 and kiwix-serve for **win-x64, mac-arm64 and mac-x64**; `bin/planetiler.jar`; `routing/graphhopper-web-11.1.jar`; `map-viewer/lib/` (MapLibre 4.7.1, pmtiles 3.2.1); `map-viewer/fonts/` (Noto Sans); map icons | ~1 GB. `--platform current` fetches only this computer's programs (a drive made that way runs only on this kind of computer). Checksums are verified. |
+| `download` | `kiwix/*.zim` libraries, `guides/` PDFs | `--set core,programming,pdfs` (default: all three). `--only knots` for one item. Picks the newest edition on download.kiwix.org; keeps the one you have unless `--update`. Log: `download.log`. |
+| `build-map` | `maps/us.pmtiles` (~11 GB, zoom 0–14) | Downloads `build/us.osm.pbf` (~12 GB, Geofabrik) first; Planetiler also downloads ~1.4 GB of water/boundary data into `build/sources`. `--refresh-osm` gets newer OSM data. |
+| `build-routing` | `routing/graph-us/` (~8.5 GB) | GraphHopper car profile. Stop the kit's map server first (it uses the graph). |
+| `build-places` | `map-viewer/places.json` (town search) | Every US city/town/village/hamlet with its state. |
+| `build-bible` | `kiwix/bible_en_kjv_<yyyy-mm>.zim`, `home/kjv.json` | KJV text from eBible.org (public domain). |
+| `build-all` | the four builds above | |
+| `all` | `setup` + `download` + `build-all` | What `regenerate-all` runs. |
+| `make-drive DRIVE` | copies the kit to `DRIVE/offline-prepper-kit` plus the launchers at the drive's top | `--no-libraries` skips the big `.zim` files. Only changed files are copied. |
+
+**Quick test without the 12 GB US data:** fetch one state and point the builds at it:
+
+```bash
+./kit.sh download --set states --only arkansas
+```
+
+```bash
+./kit.sh build-all --pbf maps/arkansas-latest.osm.pbf
+```
+
+## Run the kit
+
+- **From the USB drive (anyone):** double-click `Start Prepper Kit (Windows).bat` or `Start Prepper Kit (Mac).command`
+  at the top of the drive. The browser opens the Home page. `HOW TO START.html` explains it in plain words,
+  including the one-time security prompts (Mac: right-click → Open; Windows: allow the firewall prompt for phones).
+- **From the folder (developers):** `python3 bin/intranet.py --open` (or `runtime/<platform>/python/bin/python3`).
+  Hub on :8000, library on :8080, map on :8090. Test on other ports: `PREPPER_KIT_TEST_PORTS=9000,9080,9090`.
+
+## Folder layout
+
+| Path | In git? | What |
+|---|---|---|
+| `kit.sh`, `kit.bat`, `regenerate-all.*`, `make-drive.*` | yes | entry points (wrappers around `scripts/kit.py`) |
+| `scripts/kit.py`, `scripts/places_extract.py` | yes | all download/build logic, cross-platform Python |
+| `bin/intranet.py`, `bin/serve-maps.py`, `bin/kitplatform.py` | yes | the kit's servers (hub, map + directions proxy, program finder) |
+| `home/`, `map-viewer/index.html`, `map-viewer/style/style.json` | yes | web pages: hub, Bible search, library home page, header bar, map |
+| `routing/config.yml`, `routing/make_places.py` | yes | GraphHopper config, town list builder |
+| `bible/build-bible.py` | yes | builds the Bible library |
+| `drive-root/` | yes | launchers + `HOW TO START.html`, copied to the top of the drive |
+| `download*.sh`, `build/build-map.sh`, `routing/build-*.sh`, `bible/build-bible.sh`, `serve.sh`, `routing/start-router.sh` | yes | older Mac commands, now thin wrappers (kept for habits) |
+| `kiwix/`, `maps/`, `guides/`, `routing/graph-us/`, `map-viewer/places.json`, `home/kjv.json` | no | content: downloaded or built |
+| `runtime/`, `bin/*.jar`, `bin/kiwix-*`, `routing/*.jar`, `map-viewer/lib/`, `map-viewer/fonts/`, `map-viewer/style/sprite*` | no | third-party programs: `setup` |
+| `build/` | no | OSM data and build scratch; keep `build/us.osm.pbf` if you want to rebuild routing or places later |
+
+The `.gitignore` is a whitelist: everything is ignored unless listed, so content can't be committed by accident.
+
+## Status and what was tested
+
+- Tested on macOS (Apple Silicon): fresh clone → `setup` (all three platforms) → small `download` → `build-map`,
+  `build-routing`, `build-places` (both osmium-tool and pyosmium paths), `build-bible` on the Arkansas extract →
+  `make-drive` → hub, library, map, directions and Bible all working from the rebuilt files.
+- **Windows scripts (`*.bat`) are written for Windows 10/11 but have not been run on Windows yet.** The build logic
+  is the same Python on both systems; the `.bat` files only bootstrap Python and call it. Reports welcome.
+- Full-size whole-US builds were done with the earlier Mac-only scripts (same tools and settings).
+
+## Licenses
+
+The code in this repository is MIT licensed (see `LICENSE`). Downloaded content and programs keep their own licenses:
+OpenStreetMap data © OpenStreetMap contributors (ODbL); map tiles schema © OpenMapTiles; Wikipedia, Wikivoyage,
+Wikibooks and Stack Exchange content CC BY-SA; Kiwix tools GPL-3.0; GraphHopper Apache-2.0; Planetiler Apache-2.0;
+MapLibre BSD-3-Clause; OSM Bright style BSD/CC-BY; Noto fonts OFL; Hesperian books under Hesperian's terms;
+US government manuals public domain; KJV text public domain (eBible.org).
+
+More detail: `docs/user-guide.md` (how to use each part, version notes), `CHANGELOG.md`, `DECISIONS.md`.

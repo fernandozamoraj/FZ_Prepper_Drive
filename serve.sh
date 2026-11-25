@@ -10,7 +10,7 @@ ZIMS=()
 for f in "$HERE"/kiwix/*.zim; do
   [ -e "$f" ] || continue
   # Skip a file that's still downloading (not yet marked OK in the download log)
-  if pgrep -f download.sh >/dev/null && ! grep -q "OK  $(basename "$f")" "$LOG" 2>/dev/null; then
+  if pgrep -f "download.sh|kit.py download" >/dev/null && ! grep -q "OK  $(basename "$f")" "$LOG" 2>/dev/null; then
     echo "skip (still downloading): $(basename "$f")"; continue
   fi
   ZIMS+=("$f")

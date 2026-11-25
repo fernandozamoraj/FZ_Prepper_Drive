@@ -1,5 +1,22 @@
 # Changelog: offline prepper kit
 
+## 1.12.0 (2026-11-25)
+- Published as the code-only GitHub repo **FZ_Prepper_Drive**: git in the kit folder with a whitelist `.gitignore`
+  (content, downloaded programs and generated files are never tracked).
+- `scripts/kit.py`: one cross-platform (macOS + Windows) tool that rebuilds the whole kit: `setup` (portable
+  Python/Java/kiwix-serve for win-x64, mac-arm64, mac-x64 with checksums; Planetiler 0.10.2 and GraphHopper 11.1 jars;
+  MapLibre 4.7.1, pmtiles 3.2.1, OSM Bright icons, Noto Sans fonts), `download`, `build-map`, `build-routing`,
+  `build-places`, `build-bible`, `build-all`, `all`, `make-drive`.
+- Wrappers: `kit.sh`/`kit.bat` (fetch a portable Python first if needed), `regenerate-all.sh/.bat`, `make-drive.bat`.
+- Downloads go to `<file>.part` and are renamed when complete, so the library never serves half a file.
+  Library editions are found on download.kiwix.org by name (newest), and an edition you already have is kept unless `--update`.
+- `build-places` works without osmium-tool (pyosmium, `scripts/places_extract.py`); same result on Arkansas (3,698 towns).
+- `setup` makes runtimes drive-ready: symlinks become copies, Windows debug symbols (`*.pdb`) and `__pycache__` removed.
+- Old Mac scripts (`download*.sh`, `build/build-map.sh`, `routing/build-routing.sh`, `routing/build-places.sh`,
+  `bible/build-bible.sh`) are now wrappers around `kit.sh`. `serve.sh` and `make-drive.sh` know about the new downloader,
+  `.git` and `.part` files.
+- `README.md` is now the developer guide with manual steps; the old version notes moved to `docs/user-guide.md`.
+
 ## 1.11.0 (2026-11-25)
 - One drive for Windows and Mac: `drive-root/` launchers (`Start Prepper Kit (Windows).bat`, `(Mac).command`)
   and `HOW TO START.html`, copied to the drive root by the new `make-drive.sh` (exFAT check, space check,

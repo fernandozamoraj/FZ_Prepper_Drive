@@ -66,3 +66,19 @@
 - One Python entry point (`intranet.py`) for every system instead of shell scripts; `serve.sh`/`start-router.sh`
   stay for Fernando's own Mac commands.
 - Stopping children uses SIGTERM: background-started processes ignore SIGINT, which left the router running in testing.
+
+## 2026-11-25: Public code-only repo, rebuilt by one Python tool
+- The repo (FZ_Prepper_Drive) holds code only; everything else is downloaded or built by `scripts/kit.py`.
+  Git lives in the kit folder itself with a whitelist `.gitignore`, so the published code is the code that runs
+  and 180 GB of content can't be committed by accident.
+- One Python tool for macOS and Windows instead of parallel bash and batch scripts: the build logic is written
+  once, and the `.sh`/`.bat` files only find (or fetch) a portable Python and call it. Downloads use the `curl`
+  built into both systems (resume support, and the portable Python on macOS has no system CA certificates).
+- Programs are pinned (Python 3.12.16, kiwix-tools 3.8.2/3.8.1, Planetiler 0.10.2, GraphHopper 11.1, MapLibre 4.7.1)
+  so a rebuild matches the tested kit; only Temurin Java 21 takes the newest 21.x build. Libraries take the newest
+  edition on download.kiwix.org, because old editions are removed from the server.
+- Not committed even though small: `places.json` and `kjv.json` (generated), MapLibre/fonts/icons (third-party).
+  `style.json` is committed because it is the kit's edited copy of OSM Bright (local tiles, icons and fonts).
+- Town search on Windows uses pyosmium (BackReferenceWriter + areas), which matches osmium-tool's
+  `tags-filter`/`export` output; osmium-tool is still preferred when installed (faster, and Intel Macs need it).
+- License MIT for the code; content keeps its own licenses.

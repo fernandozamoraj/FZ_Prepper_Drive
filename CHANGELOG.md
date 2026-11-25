@@ -1,5 +1,13 @@
 # Changelog: offline prepper kit
 
+## 1.13.0 (2026-11-25)
+- Quick start: `kit.sh`/`kit.bat install all|wiki|maps` (wiki: library + Bible, `--only wikipedia_en_all` for just
+  Wikipedia; maps: map + directions + town search, `--state texas` for a quick one-state try) and `start`
+  (runs the kit from the folder and opens the Home page). Wiki/maps installs fetch programs for this computer only.
+- README: new Quick start section (get the code, pick A/B/C, run, optional USB drive).
+- Hub: says "maps: not installed" instead of starting a map server that has no map.
+- `regenerate-all.sh/.bat` now run `install all`.
+
 ## 1.12.0 (2026-11-25)
 - Published as the code-only GitHub repo **FZ_Prepper_Drive**: git in the kit folder with a whitelist `.gitignore`
   (content, downloaded programs and generated files are never tracked).

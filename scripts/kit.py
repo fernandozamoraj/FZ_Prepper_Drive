@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""kit.py (offline prepper kit v1.12.0): download and rebuild everything in the kit, on macOS or Windows.
+"""kit.py (offline prepper kit v1.13.0): download and rebuild everything in the kit, on macOS or Windows.
 
 Run it through the wrappers, which also fetch a portable Python the first time if needed:
     macOS:   ./kit.sh <command> [options]
     Windows: kit.bat <command> [options]
 
-Commands (each is safe to re-run; finished work is skipped and downloads resume):
-    setup          programs the kit carries: portable Python/Java/kiwix-serve for Windows and Mac (runtime/),
+Quick start:
+    install all    everything: libraries, Bible, PDF guides, US map + directions (~160 GB)
+    install wiki   the offline library (Wikipedia and the other libraries) + Bible (~140 GB);
+                   just Wikipedia: install wiki --only wikipedia_en_all
+    install maps   whole-US map, directions and town search (~20 GB kept, ~35 GB while building);
+                   quick try with one state: install maps --state arkansas
+    start          start the kit and open the Home page in the browser
+
+Single steps (each is safe to re-run; finished work is skipped and downloads resume):
+    setup         programs the kit carries: portable Python/Java/kiwix-serve for Windows and Mac (runtime/),
                    Planetiler and GraphHopper jars, MapLibre, map fonts and icons
     download       content: Kiwix libraries (kiwix/*.zim) and PDF guides (guides/)
     build-map      whole-US map tiles maps/us.pmtiles (downloads build/us.osm.pbf, ~12 GB, first)
@@ -14,7 +22,7 @@ Commands (each is safe to re-run; finished work is skipped and downloads resume)
     build-places   town search list map-viewer/places.json from build/us.osm.pbf
     build-bible    KJV Bible library kiwix/bible_en_kjv_<yyyy-mm>.zim and home/kjv.json
     build-all      build-map, build-routing, build-places, build-bible
-    all            setup, download, build-all (everything; ~190 GB and many hours)
+    all            same as install all
     make-drive     copy the finished kit to a USB drive (exFAT) with the double-click launchers
     version        print the kit version
 Use `<command> --help` for options.
@@ -34,7 +42,7 @@ import tempfile
 import time
 import zipfile
 
-VERSION = "1.12.0"
+VERSION = "1.13.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(KIT, "bin"))  # kitplatform (python -I leaves script dirs out of sys.path)
@@ -590,10 +598,39 @@ def cmd_build_all(a):
 
 
 def cmd_all(a):
-    a.platform, a.force, a.set, a.only, a.update = "all", False, "all", None, False
-    cmd_setup(a)
-    cmd_download(a)
-    cmd_build_all(a)
+    cmd_install(argparse.Namespace(what="all", platform="all", only=None, state=None))
+
+
+def cmd_install(a):
+    """Quick-start bundles: all, wiki (library + Bible) or maps (map + directions + town search)."""
+    plat = a.platform or ("all" if a.what == "all" else "current")
+    cmd_setup(argparse.Namespace(platform=plat, force=False))
+    if a.what in ("all", "wiki"):
+        sets = "all" if a.what == "all" else "core,programming"
+        cmd_download(argparse.Namespace(set=sets, only=a.only, update=False))
+        cmd_build_bible(argparse.Namespace())
+    if a.what in ("all", "maps"):
+        pbf = None
+        if a.state:  # quick try: one state's extract instead of the 12 GB US one
+            pbf = kit_path("maps", f"{a.state}-latest.osm.pbf")
+            get(f"https://download.geofabrik.de/north-america/us/{a.state}-latest.osm.pbf", pbf) or \
+                die(f"no OpenStreetMap extract for {a.state!r} (use names like texas, new-mexico, arkansas)")
+        base = {"pbf": pbf, "refresh_osm": False}
+        cmd_build_map(argparse.Namespace(**base, output=None, xmx="14g"))
+        cmd_build_routing(argparse.Namespace(**base, graph=None, xmx="18g"))
+        cmd_build_places(argparse.Namespace(**base, output=None, engine="auto"))
+    say(f"=== install {a.what} done. Start the kit with: {'kit.bat' if WINDOWS else './kit.sh'} start ===")
+
+
+def cmd_start(a):
+    """Start the hub (which starts the library and maps it finds) and open the browser."""
+    cmd = [sys.executable, "-I", kit_path("bin", "intranet.py"), "--open"]
+    if a.port:
+        cmd.insert(3, str(a.port))
+    try:
+        sys.exit(subprocess.call(cmd))
+    except KeyboardInterrupt:
+        pass
 
 
 # ==== make-drive =======================================================================================
@@ -650,6 +687,17 @@ def main():
     p = argparse.ArgumentParser(prog="kit", description=__doc__.split("\n\n")[0],
                                 formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("install", help="quick start: all, wiki or maps")
+    s.add_argument("what", choices=["all", "wiki", "maps"])
+    s.add_argument("--platform", help="programs for: current (default for wiki/maps), all (default for all; "
+                   "needed for a drive that runs on both Windows and Mac)")
+    s.add_argument("--only", help="wiki/all: only libraries whose name contains this, e.g. wikipedia_en_all")
+    s.add_argument("--state", help="maps/all: build from one state (e.g. arkansas) instead of the whole US")
+    s.set_defaults(fn=cmd_install)
+    s = sub.add_parser("start", help="start the kit and open the Home page")
+    s.add_argument("--port", type=int, help="Home page port (default 8000)")
+    s.set_defaults(fn=cmd_start)
 
     s = sub.add_parser("setup", help="programs: runtimes, jars, map libraries and fonts")
     s.add_argument("--platform", default="all", help="all (default; the drive runs anywhere), current, "

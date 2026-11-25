@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.11.0).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.13.0).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -128,6 +128,9 @@ def start_services():
                 continue
             children.append(kitplatform.start_quietly(cmd, env=env))
         else:
+            if not kitplatform.visible_files(os.path.join(KIT, "maps"), ".pmtiles"):
+                print(f"  {name}: not installed (no map in maps/; build it with: kit build-map)")
+                continue
             children.append(kitplatform.start_quietly(
                 [sys.executable, "-I", os.path.join(KIT, "bin", "serve-maps.py"), str(svc_port)]))
         print(f"  {name}: starting")

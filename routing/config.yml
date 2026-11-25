@@ -1,0 +1,49 @@
+# GraphHopper 11.1 config for the offline prepper kit (v1.6.0): car directions for the whole US.
+# Build the routing graph once (1-2 h):  routing/build-routing.sh
+# Serve it:                              routing/start-router.sh   (startmaps does this for you)
+# The map page talks to it through serve-maps.py at /route, so phones only need port 8090.
+graphhopper:
+  datareader.file: ../build/us.osm.pbf
+  graph.location: graph-us
+
+  profiles:
+    - name: car
+      custom_model_files: [car.json]
+
+  # Contraction hierarchies: makes cross-country routes answer in milliseconds
+  profiles_ch:
+    - profile: car
+  profiles_lm: []
+
+  graph.encoded_values: car_access, car_average_speed, road_access, road_class, road_environment, max_speed
+
+  # Car-only build: skip paths and footways to save memory and disk
+  import.osm.ignored_highways: footway,cycleway,path,pedestrian,steps,bridleway,construction,corridor,platform
+
+  prepare.min_network_size: 200
+  routing.snap_preventions_default: tunnel, bridge, ferry
+  routing.non_ch.max_waypoint_distance: 1000000
+
+  graph.dataaccess.default_type: RAM_STORE
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      bind_host: 127.0.0.1
+  request_log:
+    appenders: []
+  admin_connectors:
+    - type: http
+      port: 8990
+      bind_host: 127.0.0.1
+
+logging:
+  appenders:
+    - type: console
+      threshold: WARN
+    - type: file
+      current_log_filename: logs/graphhopper.log
+      archived_log_filename_pattern: logs/graphhopper-%d.log.gz
+      archived_file_count: 3
+      threshold: INFO

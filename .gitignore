@@ -1,0 +1,42 @@
+# FZ_Prepper_Drive: only code and config are tracked. Content (libraries, maps, PDFs, routing graph,
+# OSM data), downloaded programs (runtime/, jars, kiwix binaries, MapLibre, fonts) and generated files
+# stay out; the scripts recreate them. Whitelist: ignore everything, then allow what we publish.
+*
+!*/
+.git/
+
+# Top level
+!/.gitignore
+!/README.md
+!/CHANGELOG.md
+!/DECISIONS.md
+!/LICENSE
+!/*.sh
+!/*.bat
+
+# Scripts and programs written for the kit
+!/scripts/*.py
+!/bin/intranet.py
+!/bin/kitplatform.py
+!/bin/serve-maps.py
+!/home/*.html
+!/home/nav.js
+!/home/viewer_settings.js
+!/map-viewer/index.html
+!/map-viewer/style/style.json
+!/routing/config.yml
+!/routing/make_places.py
+!/routing/*.sh
+!/bible/build-bible.py
+!/bible/*.sh
+!/build/*.sh
+!/drive-root/*
+!/docs/*.md
+
+# Never, even inside allowed folders
+*.bak-*
+.DS_Store
+._*
+__pycache__/
+.venv/
+*.log

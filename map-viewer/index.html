@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline Maps</title>
+<link rel="stylesheet" href="/lib/maplibre-gl.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #f2efe9; font-family: -apple-system, system-ui, sans-serif; }
+  #map { position: absolute; inset: 40px 0 0 0; }  /* below the kit header bar (nav.js) */
+  #bar { position: absolute; top: 50px; left: 10px; z-index: 3; display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 70px); }
+  #bar button { font: 600 14px system-ui, sans-serif; padding: 8px 12px; border: 0; border-radius: 8px;
+    background: #fff; color: #222; box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer; }
+  #bar button:active { background: #ddd; }
+  #bar button.dir { background: #1a5fd0; color: #fff; }
+  #bar button.dir.on { background: #0d3f94; }
+  #ver { position: absolute; bottom: 4px; left: 6px; z-index: 2; font-size: 11px; color: #555; background: rgba(255,255,255,.7); padding: 1px 4px; border-radius: 3px; }
+
+  /* Directions panel */
+  #dir { position: absolute; z-index: 2; top: 96px; left: 10px; width: 340px; max-height: calc(100% - 130px);
+    display: none; flex-direction: column; background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.3);
+    font-size: 14px; color: #222; overflow: hidden; }
+  #dir.open { display: flex; }
+  #dir .head { padding: 10px 10px 8px; border-bottom: 1px solid #e4e4e4; }
+  .field { position: relative; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .pin { flex: none; width: 22px; height: 22px; border-radius: 50%; color: #fff; font: 700 12px system-ui;
+    display: flex; align-items: center; justify-content: center; }
+  .pin.a { background: #2e8b3d; } .pin.b { background: #c62828; }
+  .field input { flex: 1; min-width: 0; font: 15px system-ui, sans-serif; padding: 7px 8px; border: 1px solid #bbb; border-radius: 6px; }
+  .field input:focus { outline: 2px solid #1a5fd0; border-color: transparent; }
+  .sugg { position: absolute; top: 100%; left: 28px; right: 0; z-index: 5; background: #fff; border: 1px solid #bbb;
+    border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.2); max-height: 260px; overflow-y: auto; display: none; }
+  .sugg div { padding: 7px 9px; cursor: pointer; }
+  .sugg div:hover, .sugg div.hi { background: #e8f0fd; }
+  .sugg small { color: #777; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .row button { font: 600 13px system-ui, sans-serif; padding: 6px 10px; border: 1px solid #bbb; border-radius: 6px; background: #f6f6f6; color: #222; cursor: pointer; }
+  .row button.go { background: #1a5fd0; color: #fff; border-color: #1a5fd0; }
+  .row label { font-size: 13px; color: #444; display: flex; align-items: center; gap: 4px; }
+  .hint { font-size: 12px; color: #666; margin-top: 6px; }
+  #dir .body { overflow-y: auto; flex: 1; }
+  #msg { padding: 10px; color: #a33; display: none; }
+  .routes > div { padding: 8px 10px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
+  .routes > div.sel { background: #e8f0fd; border-left: 4px solid #1a5fd0; padding-left: 6px; }
+  .routes b { font-size: 15px; }
+  .routes small { color: #666; }
+  ol.turns { list-style: none; margin: 0; padding: 0; }
+  ol.turns li { display: flex; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+  ol.turns li:hover { background: #f7f7f7; }
+  ol.turns .ic { flex: none; width: 22px; text-align: center; font-size: 16px; }
+  ol.turns .tx { flex: 1; }
+  ol.turns .d { flex: none; color: #666; font-size: 12px; white-space: nowrap; }
+  #printhead { display: none; }
+
+  /* Place popups: links to library articles (Wikipedia / Wikivoyage) */
+  .maplibregl-popup-content { font: 14px system-ui, sans-serif; color: #222; padding: 10px 12px; border-radius: 8px; min-width: 170px; }
+  .pp b { font-size: 15px; display: block; margin-bottom: 2px; }
+  .pp small { color: #666; display: block; margin-bottom: 6px; }
+  .pp a, .pp button { display: block; margin: 4px 0 0; padding: 5px 8px; border-radius: 6px; border: 1px solid #ccd; background: #f4f6fb;
+    color: #1a4fb0; text-decoration: none; font: 600 13px system-ui, sans-serif; text-align: left; width: 100%; box-sizing: border-box; cursor: pointer; }
+  .pp .none { color: #888; font-size: 12px; margin-top: 4px; }
+  .pin-marker { font-size: 30px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); cursor: pointer; }
+
+  @media (max-width: 600px) {
+    #dir { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 55%; border-radius: 12px 12px 0 0; z-index: 4; }
+  }
+  @media print {
+    #map, #bar, #ver, #dir .head, .routes, .maplibregl-control-container { display: none !important; }
+    #dir { position: static; display: block !important; box-shadow: none; width: auto; max-height: none; overflow: visible; }
+    #dir .body { overflow: visible; }
+    #printhead { display: block; padding: 0 10px 8px; }
+    ol.turns li { break-inside: avoid; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body data-fznav="overlay">
+<script src="/nav.js"></script>
+<div id="bar">
+  <button class="dir" id="dirBtn">Directions</button>
+  <button data-go="-99.3,31.2,5.3">Texas</button>
+  <button data-go="-119.5,37.2,5.2">California</button>
+  <button data-go="-83.0,28.0,5.6">Florida</button>
+  <button data-go="-86.5,40.8,5.4">Midwest</button>
+  <button data-go="-77.5,38.5,5.0">East Coast</button>
+  <button data-go="-98.5,39.0,3.4">Whole US</button>
+</div>
+
+<div id="dir">
+  <div class="head">
+    <div class="field"><span class="pin a">A</span><input id="fromIn" placeholder="From: town, or click the map" autocomplete="off"><div class="sugg"></div></div>
+    <div class="field"><span class="pin b">B</span><input id="toIn" placeholder="To: town, or click the map" autocomplete="off"><div class="sugg"></div></div>
+    <div class="row">
+      <button class="go" id="goBtn">Get directions</button>
+      <button id="swapBtn" title="Swap start and end">⇅ Swap</button>
+      <button id="clearBtn">Clear</button>
+      <label><input type="checkbox" id="altChk" checked> Alternate routes</label>
+      <button id="printBtn" style="display:none">Print</button>
+    </div>
+    <div class="hint">Click the map to set A, then B. Drag the pins to adjust. Works with no internet.</div>
+  </div>
+  <div class="body">
+    <div id="msg"></div>
+    <div id="printhead"></div>
+    <div class="routes" id="routes"></div>
+    <ol class="turns" id="turns"></ol>
+  </div>
+</div>
+
+<div id="map"></div>
+<div id="ver">Offline Maps v1.11.0 (whole US, offline directions) · © OpenMapTiles © OpenStreetMap contributors · Routing: GraphHopper</div>
+<script src="/lib/maplibre-gl.js"></script>
+<script src="/lib/pmtiles.js"></script>
+<script>
+  const protocol = new pmtiles.Protocol();
+  maplibregl.addProtocol("pmtiles", protocol.tile);
+  const $ = id => document.getElementById(id);
+
+  fetch("/style/style.json").then(r => r.json()).then(style => {
+    // MapLibre needs absolute URLs for sprites, glyphs and the tile file
+    const o = location.origin;
+    style.sprite = o + "/style/sprite";
+    style.glyphs = o + "/fonts/{fontstack}/{range}.pbf";
+    style.sources.openmaptiles.url = "pmtiles://" + o + "/tiles/us.pmtiles";
+
+    const map = new maplibregl.Map({
+      container: "map", style, center: [-98.5, 39.0], zoom: 3.4, maxZoom: 18, hash: true
+    });
+    window.map = map;
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+    map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }), "bottom-right");
+    map.addControl(new maplibregl.FullscreenControl(), "top-right");
+
+    document.querySelectorAll("#bar button[data-go]").forEach(b => b.onclick = () => {
+      const [lng, lat, z] = b.dataset.go.split(",").map(Number);
+      map.flyTo({ center: [lng, lat], zoom: z });
+    });
+
+    map.on("load", () => {
+      map.addSource("routes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({ id: "route-alt", type: "line", source: "routes", filter: ["!=", ["get", "sel"], true],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#8a8a8a", "line-width": 5, "line-opacity": 0.8 } });
+      map.addLayer({ id: "route-casing", type: "line", source: "routes", filter: ["==", ["get", "sel"], true],
+        layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#0b3a8a", "line-width": 9 } });
+      map.addLayer({ id: "route-main", type: "line", source: "routes", filter: ["==", ["get", "sel"], true],
+        layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#2f7bff", "line-width": 6 } });
+      map.on("click", "route-alt", e => { userPicked = true; selectRoute(e.features[0].properties.i); });
+      map.on("mouseenter", "route-alt", () => map.getCanvas().style.cursor = "pointer");
+      map.on("mouseleave", "route-alt", () => map.getCanvas().style.cursor = "");
+    });
+
+    setupDirections(map);
+    setupPlaceLinks(map);
+  });
+
+  // ---------- Directions ----------
+  const pts = { a: null, b: null };   // {lng, lat, label}
+  const markers = {};
+  let paths = [], selected = 0;
+
+  function setupDirections(map) {
+    const panel = $("dir");
+    $("dirBtn").onclick = () => {
+      panel.classList.toggle("open");
+      $("dirBtn").classList.toggle("on", panel.classList.contains("open"));
+      if (panel.classList.contains("open")) { loadPlaces(); if (!pts.a) $("fromIn").focus(); }
+    };
+    map.on("click", e => {
+      if (!panel.classList.contains("open")) return placeClick(e);
+      if (map.getLayer("route-alt") && map.queryRenderedFeatures(e.point, { layers: ["route-alt"] }).length) return;
+      setPoint(!pts.a ? "a" : "b", e.lngLat.lng, e.lngLat.lat, nearestLabel(e.lngLat.lng, e.lngLat.lat));
+    });
+    $("goBtn").onclick = route;
+    $("swapBtn").onclick = () => {
+      const a = pts.a, b = pts.b;
+      setPoint("a", b && b.lng, b && b.lat, b && b.label, true);
+      setPoint("b", a && a.lng, a && a.lat, a && a.label);
+    };
+    $("clearBtn").onclick = () => {
+      setPoint("a", null, null, null, true); setPoint("b", null, null, null, true);
+      showRoutes([]); msg("");
+    };
+    $("altChk").onchange = () => { if (pts.a && pts.b) route(); };
+    $("printBtn").onclick = () => window.print();
+    setupSearch($("fromIn"), "a");
+    setupSearch($("toIn"), "b");
+  }
+
+  function setPoint(key, lng, lat, label, noRoute) {
+    const map = window.map;
+    if (markers[key]) { markers[key].remove(); delete markers[key]; }
+    if (lng == null) { pts[key] = null; $(key === "a" ? "fromIn" : "toIn").value = ""; return; }
+    pts[key] = { lng, lat, label: label || fmtCoord(lng, lat) };
+    $(key === "a" ? "fromIn" : "toIn").value = pts[key].label;
+    const el = document.createElement("div");
+    el.className = "pin " + key; el.textContent = key.toUpperCase();
+    el.style.cssText = "width:26px;height:26px;font-size:13px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:grab";
+    markers[key] = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([lng, lat]).addTo(map);
+    markers[key].on("dragend", () => {
+      const p = markers[key].getLngLat();
+      pts[key] = { lng: p.lng, lat: p.lat, label: nearestLabel(p.lng, p.lat) };
+      $(key === "a" ? "fromIn" : "toIn").value = pts[key].label;
+      if (pts.a && pts.b) route();
+    });
+    if (!noRoute && pts.a && pts.b) route();
+  }
+
+  function msg(t) { $("msg").textContent = t; $("msg").style.display = t ? "block" : "none"; }
+
+  // The main route comes back in well under a second even coast to coast; alternates can take
+  // several seconds on long trips, so show the main route first and add alternates when they arrive.
+  let routeSeq = 0, altPending = false, userPicked = false;
+  async function route() {
+    if (!pts.a || !pts.b) { msg("Set both A and B first (type a town or click the map)."); return; }
+    const seq = ++routeSeq;
+    msg("Finding route…");
+    const q = new URLSearchParams({ profile: "car", locale: "en", points_encoded: "false", instructions: "true" });
+    q.append("point", pts.a.lat + "," + pts.a.lng);
+    q.append("point", pts.b.lat + "," + pts.b.lng);
+    q.append("details", "street_ref"); q.append("details", "street_name");
+    const get = async extra => {
+      const r = await fetch("/route?" + q + extra);
+      const j = await r.json();
+      if (!r.ok) throw new Error(friendlyError(j.message || ("Error " + r.status)));
+      const list = j.paths || [];
+      list.forEach(enrich);
+      return list.sort((x, y) => x.time - y.time);  // GraphHopper also weighs distance; list fastest first
+    };
+    try {
+      const main = await get("");
+      if (seq !== routeSeq) return;
+      msg("");
+      altPending = $("altChk").checked; userPicked = false;
+      showRoutes(main, true);
+      if (!altPending) return;
+      let all;
+      try { all = await get("&algorithm=alternative_route&alternative_route.max_paths=3"); } catch (e) { all = main; }
+      if (seq !== routeSeq) return;
+      altPending = false;
+      const keep = paths[selected] && paths[selected].time;
+      paths = all;  // switch to the fastest, unless the person already picked a route to look at
+      selectRoute(userPicked ? Math.max(0, all.findIndex(p => p.time === keep)) : 0);
+    } catch (e) {
+      if (seq !== routeSeq) return;
+      altPending = false;
+      showRoutes([], true);
+      msg(e instanceof TypeError ? "Could not reach the map server." : e.message);
+    }
+  }
+
+  function friendlyError(m) {
+    if (/Cannot find point|out of bounds/i.test(m)) return "One of the points is not near a road the router knows. Move the pin closer to a road.";
+    if (/Connection between locations not found/i.test(m)) return "No driving route between these points (an island, or a road gap).";
+    return m;
+  }
+
+  function showRoutes(list) {
+    paths = list; selected = 0;
+    $("printBtn").style.display = list.length ? "" : "none";
+    const map = window.map;
+    if (!list.length) {
+      $("routes").innerHTML = ""; $("turns").innerHTML = "";
+      if (map.getSource("routes")) map.getSource("routes").setData({ type: "FeatureCollection", features: [] });
+      return;
+    }
+    const b = list[0].bbox;  // [minLon, minLat, maxLon, maxLat]
+    const wide = window.innerWidth > 600;
+    map.fitBounds([[b[0], b[1]], [b[2], b[3]]], {
+      padding: wide ? { top: 70, bottom: 40, left: 380, right: 60 } : { top: 70, bottom: window.innerHeight * 0.58, left: 30, right: 30 },
+      maxZoom: 15 });
+    selectRoute(0);
+  }
+
+  function selectRoute(i) {
+    selected = i;
+    const map = window.map;
+    map.getSource("routes").setData({ type: "FeatureCollection", features: paths.map((p, k) =>
+      ({ type: "Feature", geometry: p.points, properties: { i: k, sel: k === i } })) });
+    $("routes").innerHTML = paths.map((p, k) =>
+      `<div class="${k === i ? "sel" : ""}" data-i="${k}"><span><b>${fmtTime(p.time)}</b> <small>${k ? "alternate " + k : "fastest"}</small><br><small>${esc(viaText(p))}</small></span><span><b>${fmtMi(p.distance)}</b></span></div>`
+    ).join("") + (altPending ? `<div style="cursor:default;color:#666;font-size:13px">Looking for alternate routes…</div>` : "");
+    $("routes").querySelectorAll("[data-i]").forEach(d => d.onclick = () => { userPicked = true; selectRoute(+d.dataset.i); });
+    const p = paths[i], coords = p.points.coordinates;
+    $("printhead").innerHTML = `<h2 style="margin:8px 0 2px">${esc(pts.a.label)} → ${esc(pts.b.label)}</h2>
+      <div>${fmtMi(p.distance)} · about ${fmtTime(p.time)} · via ${esc(viaText(p))}</div>`;
+    $("turns").innerHTML = p.instructions.map((ins, k) =>
+      `<li data-k="${k}"><span class="ic">${icon(ins.sign)}</span><span class="tx">${esc(ins.text)}</span><span class="d">${ins.distance > 0 ? fmtMi(ins.distance) : ""}</span></li>`
+    ).join("");
+    $("turns").querySelectorAll("li").forEach(li => li.onclick = () => {
+      const ins = p.instructions[+li.dataset.k];
+      map.flyTo({ center: coords[ins.interval[0]], zoom: Math.max(map.getZoom(), 14) });
+    });
+  }
+
+  // Interstates and highways in OpenStreetMap often have a route number but no street name, so
+  // GraphHopper merges the on-ramp and the whole highway into one nameless step ("Turn left", 117 mi).
+  // Use the per-segment route numbers (path details) to say which road each step follows.
+  function enrich(p) {
+    const c = p.points.coordinates, cum = [0];
+    for (let k = 1; k < c.length; k++) cum.push(cum[k - 1] + meters(c[k - 1], c[k]));
+    const len = (a, b) => cum[Math.min(b, cum.length - 1)] - cum[a];
+    const refs = (p.details && p.details.street_ref || []).filter(d => d[2]);
+    const names = (p.details && p.details.street_name || []).filter(d => d[2]);
+    for (const ins of p.instructions) {
+      const [s0, s1] = ins.interval, span = len(s0, s1);
+      if (ins.street_ref || span < 1600) continue;
+      const by = {};
+      for (const [a, b, r] of refs) { const o = Math.min(b, s1) - Math.max(a, s0); if (o > 0) by[r] = (by[r] || 0) + len(Math.max(a, s0), Math.min(b, s1)); }
+      const top = Object.entries(by).sort((x, y) => y[1] - x[1])[0];
+      if (top && top[1] > span * 0.5) ins.text += (ins.sign === 0 && !ins.street_name ? " on " : ", then follow ") + fmtRef(top[0]);
+    }
+    const by = {};
+    for (const [a, b, r] of refs) for (const one of r.split(/\s*[;,]\s*/)) by[fmtRef(one)] = (by[fmtRef(one)] || 0) + len(a, b);
+    const byName = {};
+    for (const [a, b, n] of names) byName[n] = (byName[n] || 0) + len(a, b);
+    const top = Object.entries(by).sort((x, y) => y[1] - x[1]).slice(0, 3).map(e => e[0]);
+    const topN = Object.entries(byName).sort((x, y) => y[1] - x[1]).map(e => e[0]);
+    p.via = top.concat(topN).slice(0, 3);
+  }
+  const fmtRef = r => r.split(/\s*[;,]\s*/).map(x => x.replace(/^(I|US|SR|[A-Z]{2}) (\d)/, "$1-$2")).join(" / ");
+  function meters(a, b) {
+    const R = 6371000, r = Math.PI / 180, dLat = (b[1] - a[1]) * r, dLng = (b[0] - a[0]) * r;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  const viaText = p => (p.via && p.via.length) ? p.via.join(", ") : "local roads";
+
+  function icon(sign) {
+    return ({ "-98": "⤺", "-8": "⤺", "-7": "↖", "-3": "↰", "-2": "⬅", "-1": "↖", "0": "⬆", "1": "↗", "2": "➡",
+      "3": "↱", "4": "🏁", "5": "📍", "6": "⟳", "7": "↗", "8": "⤻" })[String(sign)] || "•";
+  }
+  const fmtMi = m => { const mi = m / 1609.344; return mi < 0.2 ? Math.round(m * 3.28084 / 10) * 10 + " ft" : (mi < 10 ? mi.toFixed(1) : Math.round(mi).toLocaleString()) + " mi"; };
+  const fmtTime = ms => { const min = Math.round(ms / 60000); return min < 60 ? min + " min" : Math.floor(min / 60) + " h " + (min % 60) + " min"; };
+  const fmtCoord = (lng, lat) => lat.toFixed(4) + ", " + lng.toFixed(4);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+  // ---------- Map ↔ library: pins from article links, "read about it" popups ----------
+  // Library articles link here as /?pin=lat,lon&label=Name#zoom/lat/lon (see home/nav.js).
+  // Clicking a town or landmark name looks up its Wikipedia / Wikivoyage article in the offline library (port 8080).
+  const LIB = `${location.protocol}//${location.hostname}:8080/`;
+  const STATES = {AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",
+    DC:"District of Columbia",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",
+    KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",
+    MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",
+    NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",
+    SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",
+    WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",PR:"Puerto Rico"};
+  const CLICKABLE = ["place-city-capital", "place-city", "place-town", "place-village", "place-other",
+    "poi-level-1", "poi-level-2", "poi-level-3", "airport-label-major", "water-name-other"];
+  let popup = null, pinMarker = null, libBooks = null;
+
+  function setupPlaceLinks(map) {
+    map.on("load", () => {
+      for (const id of CLICKABLE) if (map.getLayer(id)) {
+        map.on("mouseenter", id, () => map.getCanvas().style.cursor = "pointer");
+        map.on("mouseleave", id, () => map.getCanvas().style.cursor = "");
+      }
+    });
+    const q = new URLSearchParams(location.search);
+    const pin = (q.get("pin") || "").split(",").map(Number);
+    if (pin.length === 2 && pin.every(Number.isFinite)) {
+      const [lat, lng] = pin, name = q.get("label") || fmtCoord(lng, lat);
+      if (!location.hash) map.jumpTo({ center: [lng, lat], zoom: 12 });
+      const el = document.createElement("div");
+      el.className = "pin-marker"; el.textContent = "📍";
+      pinMarker = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map);
+      el.addEventListener("click", ev => { ev.stopPropagation(); showPlace(lng, lat, name, false); });
+      map.once("idle", () => showPlace(lng, lat, name, false));
+    }
+  }
+
+  function placeClick(e) {
+    const map = window.map, p = e.point, box = [[p.x - 6, p.y - 6], [p.x + 6, p.y + 6]];
+    const layers = CLICKABLE.filter(id => map.getLayer(id));
+    const f = map.queryRenderedFeatures(box, { layers })[0];
+    if (!f) { if (popup) popup.remove(); return; }
+    const pr = f.properties, name = pr["name:en"] || pr.name_en || pr.name;
+    if (!name) return;
+    const [lng, lat] = f.geometry.type === "Point" ? f.geometry.coordinates : [e.lngLat.lng, e.lngLat.lat];
+    showPlace(lng, lat, name, /^place-/.test(f.layer.id), pr.class);
+  }
+
+  async function showPlace(lng, lat, name, isTown, kind) {
+    const map = window.map;
+    if (popup) popup.remove();
+    let state = "";
+    if (isTown || !kind) {  // which state? nearest same-named town in the offline town list
+      await loadPlaces();
+      const c = Math.cos(lat * Math.PI / 180), key = norm(name);
+      let best = null, bd = Infinity;
+      for (const t of places) {
+        if (t.key !== key) continue;
+        const d = ((t.lng - lng) * c) ** 2 + (t.lat - lat) ** 2;
+        if (d < bd) { bd = d; best = t; }
+      }
+      if (best && Math.sqrt(bd) * 69 < 25) state = best.s;
+    }
+    const where = state ? (STATES[state] || state) : "";
+    const box = document.createElement("div");
+    box.className = "pp";
+    box.innerHTML = `<b>${esc(name)}</b><small>${esc([kind && kind !== "city" && kind !== "town" && kind !== "village" ? kind.replace(/_/g, " ") : "", where].filter(Boolean).join(" · ") || fmtCoord(lng, lat))}</small>
+      <div class="links"><div class="none">Looking in the library…</div></div><button type="button" class="dirto">🚗 Directions to here</button>`;
+    box.querySelector(".dirto").onclick = () => {
+      const panel = $("dir");
+      if (!panel.classList.contains("open")) $("dirBtn").click();
+      setPoint("b", lng, lat, name + (state ? ", " + state : ""));
+      if (!pts.a) $("fromIn").focus();
+      popup.remove();
+    };
+    popup = new maplibregl.Popup({ offset: 14, maxWidth: "260px" }).setLngLat([lng, lat]).setDOMContent(box).addTo(map);
+
+    const links = box.querySelector(".links");
+    const books = await libraryBooks();
+    if (!books) { links.innerHTML = `<div class="none">Library not running (start it with runhomeintra).</div>`; return; }
+    const found = [];
+    const wp = books.wikipedia && await firstArticle(books.wikipedia, where ? [`${name}, ${where}`, name] : [name]);
+    if (wp) found.push(`<a href="${LIB}viewer#${books.wikipedia}/${wp}" target="_top">📖 Wikipedia: ${esc(wp.replace(/_/g, " "))}</a>`);
+    const wv = books.wikivoyage && await firstArticle(books.wikivoyage, where ? [`${name} (${where})`, name] : [name]);
+    if (wv) found.push(`<a href="${LIB}viewer#${books.wikivoyage}/${wv}" target="_top">🧳 Wikivoyage: ${esc(wv.replace(/_/g, " "))}</a>`);
+    links.innerHTML = found.join("") || `<div class="none">No library article found for this name.</div>`;
+  }
+
+  // Library content ids (file names, e.g. wikipedia_en_all_maxi_2026-08) from its catalog, once
+  async function libraryBooks() {
+    if (libBooks) return libBooks;
+    try {
+      const xml = new DOMParser().parseFromString(await (await fetch(LIB + "catalog/v2/entries?count=500")).text(), "application/xml");
+      const out = {};
+      for (const e of xml.querySelectorAll("entry")) {
+        const n = e.querySelector("name")?.textContent || "";
+        const link = [...e.querySelectorAll("link")].find(l => /text\/html/.test(l.getAttribute("type") || ""));
+        const id = link && (link.getAttribute("href") || "").replace(/^.*\/content\//, "").replace(/\/$/, "");
+        if (!id) continue;
+        if (n === "wikipedia_en_all") out.wikipedia = id;
+        if (n === "wikivoyage_en_all") out.wikivoyage = id;
+      }
+      return (libBooks = out);
+    } catch (e) { return null; }
+  }
+
+  // First title that exists in the book (Kiwix answers 404 for missing articles, follows redirects)
+  async function firstArticle(book, titles) {
+    for (const t of titles) {
+      const path = t.replace(/ /g, "_");
+      try {
+        const r = await fetch(`${LIB}content/${book}/${encodeURIComponent(path)}`, { method: "HEAD" });
+        if (r.ok) return path;
+      } catch (e) { return null; }
+    }
+    return null;
+  }
+
+  // ---------- Town search (offline list: places.json) ----------
+  let places = null, placesLoading = null;
+  function loadPlaces() {
+    if (!placesLoading) placesLoading = fetch("/places.json").then(r => r.json())
+      .then(d => { places = d.map(r => ({ n: r[0], s: r[1], k: r[2], lng: r[3], lat: r[4], key: norm(r[0]) })); })
+      .catch(() => { places = []; });
+    return placesLoading;
+  }
+  const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
+  const label = p => p.n + (p.s ? ", " + p.s : "");
+
+  function search(text) {
+    const m = text.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (m) {  // typed coordinates: "lat, lon"
+      const lat = +m[1], lng = +m[2];
+      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return [{ n: fmtCoord(lng, lat), s: "", k: "coordinates", lng, lat }];
+    }
+    if (!places) return [];
+    let [name, st] = text.split(",");
+    name = norm(name || ""); st = norm(st || "").toUpperCase();
+    if (!name) return [];
+    const out = [], later = [];
+    for (const p of places) {
+      if (st && !p.s.startsWith(st)) continue;
+      if (p.key.startsWith(name)) { out.push(p); if (out.length >= 8) break; }
+      else if (later.length < 8 && name.length > 2 && p.key.includes(" " + name)) later.push(p);
+    }
+    return out.concat(later).slice(0, 8);
+  }
+
+  function nearestLabel(lng, lat) {
+    if (!places || !places.length) return fmtCoord(lng, lat);
+    let best = null, bd = Infinity;
+    const c = Math.cos(lat * Math.PI / 180);
+    for (const p of places) {
+      if (p.k === "hamlet") continue;
+      const dx = (p.lng - lng) * c, dy = p.lat - lat, d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = p; }
+    }
+    const mi = Math.sqrt(bd) * 69;
+    if (!best || mi > 30) return fmtCoord(lng, lat);
+    return mi < 1.5 ? label(best) : `near ${label(best)} (${Math.round(mi)} mi)`;
+  }
+
+  function setupSearch(input, key) {
+    const box = input.parentElement.querySelector(".sugg");
+    let items = [], hi = -1;
+    const render = () => {
+      box.innerHTML = items.map((p, k) => `<div class="${k === hi ? "hi" : ""}" data-k="${k}">${esc(p.n)}${p.s ? ", " + p.s : ""} <small>${p.k}</small></div>`).join("");
+      box.style.display = items.length ? "block" : "none";
+      box.querySelectorAll("div").forEach(d => d.onmousedown = e => { e.preventDefault(); pick(+d.dataset.k); });
+    };
+    const pick = k => {
+      const p = items[k]; if (!p) return;
+      items = []; render();
+      setPoint(key, p.lng, p.lat, p.k === "coordinates" ? p.n : label(p));
+      if (!(pts.a && pts.b)) {
+        window.map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(window.map.getZoom(), 9) });
+        if (key === "a") $("toIn").focus();
+      }
+    };
+    input.addEventListener("focus", () => { loadPlaces(); input.select(); });
+    input.addEventListener("input", async () => { await loadPlaces(); items = search(input.value); hi = items.length ? 0 : -1; render(); });
+    input.addEventListener("keydown", e => {
+      if (e.key === "ArrowDown") { hi = Math.min(items.length - 1, hi + 1); render(); e.preventDefault(); }
+      else if (e.key === "ArrowUp") { hi = Math.max(0, hi - 1); render(); e.preventDefault(); }
+      else if (e.key === "Enter") { if (items.length) pick(Math.max(0, hi)); else route(); e.preventDefault(); }
+      else if (e.key === "Escape") { items = []; render(); }
+    });
+    input.addEventListener("blur", () => setTimeout(() => { items = []; render(); }, 150));
+  }
+</script>
+</body>
+</html>

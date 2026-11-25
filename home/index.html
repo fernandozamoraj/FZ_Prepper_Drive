@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline Library</title>
+<!-- Offline prepper kit home page, served by kiwix-serve --customIndex (see serve.sh). No internet needed. -->
+<style>
+:root{
+  --bg:#f6f5f1; --panel:#fff; --ink:#1d1d1b; --muted:#6b6a64; --line:#e3e1da;
+  --accent:#2f6b3a; --accent-ink:#fff; --chip:#ecebe5; --hl:#fff1a8; --shadow:0 1px 3px rgba(0,0,0,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#161714; --panel:#20211d; --ink:#ecebe5; --muted:#a3a29a; --line:#34352f;
+    --accent:#7cc48a; --accent-ink:#10200f; --chip:#2b2c27; --hl:#5a4f12; --shadow:none; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:inherit}
+.wrap{max-width:920px;margin:0 auto;padding:28px 16px 48px}
+header h1{margin:0;font-size:28px;letter-spacing:-.01em}
+header p{margin:4px 0 20px;color:var(--muted)}
+form{position:relative}
+.searchrow{display:flex;gap:8px}
+#q{flex:1;min-width:0;font:inherit;font-size:19px;padding:14px 16px;border:2px solid var(--line);
+  border-radius:12px;background:var(--panel);color:var(--ink);outline:none}
+#q:focus{border-color:var(--accent)}
+.go{font:inherit;font-weight:600;padding:0 22px;border:0;border-radius:12px;background:var(--accent);
+  color:var(--accent-ink);cursor:pointer}
+#suggest{position:absolute;left:0;right:0;top:58px;z-index:5;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.15);overflow:hidden;display:none}
+#suggest a{display:block;padding:9px 14px;text-decoration:none;border-top:1px solid var(--line)}
+#suggest a:first-child{border-top:0}
+#suggest a.on,#suggest a:hover{background:var(--chip)}
+#suggest small{color:var(--muted)}
+.scopes{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px}
+.scopes button{font:inherit;font-size:14px;padding:7px 13px;border-radius:999px;border:1px solid var(--line);
+  background:var(--chip);color:var(--ink);cursor:pointer}
+.scopes button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.hint{color:var(--muted);font-size:14px;margin:4px 0 0}
+#results{margin-top:22px}
+.count{color:var(--muted);font-size:14px;margin-bottom:8px}
+.hit{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;box-shadow:var(--shadow)}
+.hit a.t{font-size:18px;font-weight:600;text-decoration:none;color:var(--accent)}
+.hit a.t:hover{text-decoration:underline}
+.hit .src{font-size:13px;color:var(--muted);margin:2px 0 4px}
+.hit p{margin:0;font-size:15px;overflow-wrap:anywhere}
+mark{background:var(--hl);color:inherit;padding:0 1px;border-radius:2px}
+.more{display:block;margin:14px auto;font:inherit;padding:10px 20px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);cursor:pointer}
+.msg{padding:16px;color:var(--muted)}
+h2{font-size:17px;margin:34px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.lib{display:flex;gap:10px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:10px 12px;text-decoration:none;box-shadow:var(--shadow)}
+.lib:hover{border-color:var(--accent)}
+.lib img{width:36px;height:36px;border-radius:6px;flex:none}
+.lib b{display:block;font-size:15px}
+.lib span{display:block;font-size:13px;color:var(--muted);line-height:1.3}
+.extras{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.extras a{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;text-decoration:none}
+footer{margin-top:40px;color:var(--muted);font-size:13px}
+@media (max-width:520px){ header h1{font-size:23px} .go{padding:0 14px} #q{font-size:17px} }
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<div class="wrap">
+  <header>
+    <h1>Offline Library</h1>
+    <p>Wikipedia, medical, survival, repair and how-to references. No internet needed.</p>
+  </header>
+
+  <form id="f" autocomplete="off">
+    <div class="searchrow">
+      <input id="q" type="search" placeholder="Search everything… e.g. Rocky, water filter, splint" aria-label="Search">
+      <button class="go" type="submit">Search</button>
+    </div>
+    <div id="suggest" role="listbox"></div>
+  </form>
+  <div class="scopes" id="scopes" role="group" aria-label="Search in"></div>
+  <p class="hint" id="hint"></p>
+
+  <div id="results"></div>
+
+  <div id="libs"></div>
+
+  <h2>Also on this kit</h2>
+  <div class="extras">
+    <a id="hublink" href="#">🏠 Home intranet (maps, PDF guides)</a>
+    <a id="mapslink" href="#">🗺️ Offline maps &amp; directions</a>
+    <a href="/nojs">📚 Plain library list (old browsers)</a>
+  </div>
+
+  <footer>Offline prepper kit v1.11.0 · served by kiwix-serve</footer>
+</div>
+
+<script>
+// Search groups. Each library (catalog <name>, without its date) can be in several groups.
+const GROUPS = [
+  {id:'all',      label:'Everything',      hint:'All libraries at once.'},
+  {id:'wiki',     label:'Wikipedia',       books:['wikipedia_en_all']},
+  {id:'medical',  label:'Medical',         books:['wikipedia_en_medicine','zimgit-medicine_en','medicalsciences.stackexchange.com_en_all']},
+  {id:'survival', label:'Survival',        books:['trueprepper.com_en_all','zimgit-post-disaster_en','zimgit-water_en','zimgit-knots_en','zimgit-food-preparation_en','outdoors.stackexchange.com_en_all']},
+  {id:'repair',   label:'Fix & build',     books:['ifixit_en_all','diy.stackexchange.com_en_all','electronics.stackexchange.com_en_all','engineering.stackexchange.com_en_all']},
+  {id:'food',     label:'Food & garden',   books:['cooking.stackexchange.com_en_all','gardening.stackexchange.com_en_all','homebrew.stackexchange.com_en_all','sustainability.stackexchange.com_en_all','zimgit-food-preparation_en']},
+  {id:'radio',    label:'Ham radio',       books:['ham.stackexchange.com_en_all']},
+  {id:'travel',   label:'Travel',          books:['wikivoyage_en_all']},
+  {id:'books',    label:'Textbooks',       books:['wikibooks_en_all']},
+  {id:'bible',    label:'Bible',           books:['bible_en_kjv']},
+  {id:'code',     label:'Programming',     prefix:['devdocs_','freecodecamp_']},
+];
+const PAGE = 20;
+const $ = s => document.querySelector(s);
+let LIBS = [];          // {name, content, title, summary, count, icon, ft}
+let scope = 'all', query = '', start = 0, total = 0, sugTimer = 0, sugIdx = -1;
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const inGroup = (g, lib) => g.id === 'all' || (g.books || []).includes(lib.name) ||
+  (g.prefix || []).some(p => lib.name.startsWith(p));
+const groupLibs = id => LIBS.filter(l => inGroup(GROUPS.find(g => g.id === id), l));
+const viewer = contentPath => '/viewer#' + contentPath.replace(/^\/content\//, '');
+
+async function loadCatalog(){
+  const xml = new DOMParser().parseFromString(
+    await (await fetch('/catalog/v2/entries?count=500')).text(), 'application/xml');
+  LIBS = [...xml.querySelectorAll('entry')].map(e => {
+    const t = s => (e.querySelector(s)?.textContent || '').trim();
+    return {
+      name: t('name'), title: t('title'), summary: t('summary'), count: +t('articleCount') || 0,
+      content: (e.querySelector('link[type="text/html"]')?.getAttribute('href') || '').replace(/^\/content\//, ''),
+      icon: e.querySelector('link[rel$="thumbnail"]')?.getAttribute('href') || '',
+      ft: !/_ftindex:no/.test(t('tags')),
+    };
+  }).sort((a, b) => b.count - a.count);
+}
+
+function drawScopes(){
+  $('#scopes').innerHTML = GROUPS.filter(g => g.id === 'all' || groupLibs(g.id).length)
+    .map(g => `<button type="button" data-g="${g.id}" aria-pressed="${g.id === scope}">${esc(g.label)}</button>`).join('');
+  const libs = groupLibs(scope);
+  $('#hint').textContent = scope === 'all' ? `Searching all ${LIBS.length} libraries.`
+    : 'Searching: ' + libs.map(l => l.title).join(', ');
+}
+
+function drawLibraries(){
+  const shown = new Set(), out = [];
+  for (const g of GROUPS.filter(g => g.id !== 'all')){
+    const libs = groupLibs(g.id).filter(l => !shown.has(l.name));
+    if (!libs.length) continue;
+    libs.forEach(l => shown.add(l.name));
+    out.push(`<h2>${esc(g.label)}</h2><div class="grid">` + libs.map(tile).join('') + '</div>');
+  }
+  const rest = LIBS.filter(l => !shown.has(l.name));
+  if (rest.length) out.push('<h2>Other</h2><div class="grid">' + rest.map(tile).join('') + '</div>');
+  $('#libs').innerHTML = out.join('');
+}
+const tile = l => `<a class="lib" href="${viewer(l.content)}">
+  ${l.icon ? `<img src="${esc(l.icon)}" alt="" loading="lazy">` : ''}
+  <div><b>${esc(l.title)}</b><span>${esc(l.summary)}</span></div></a>`;
+
+function searchURL(){
+  const p = new URLSearchParams({pattern: query, format: 'xml', start, pageLength: PAGE});
+  if (scope === 'all') p.set('books.filter.lang', 'eng');
+  else groupLibs(scope).forEach(l => p.append('books.name', l.content));
+  return '/search?' + p;
+}
+
+function highlight(text){
+  const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 1).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  let h = esc(text);
+  if (words.length) h = h.replace(new RegExp('\\b(' + words.join('|') + ')', 'gi'), '<mark>$1</mark>');
+  return h;
+}
+
+async function runSearch(append){
+  const box = $('#results');
+  if (!append){ start = 0; box.innerHTML = '<div class="msg">Searching…</div>'; }
+  let xml;
+  try {
+    const r = await fetch(searchURL());
+    xml = new DOMParser().parseFromString(await r.text(), 'application/xml');
+    if (!r.ok || xml.querySelector('parsererror')) throw new Error('HTTP ' + r.status);
+  } catch (e){
+    box.innerHTML = `<div class="msg">Search failed (${esc(e.message)}). Is the server still running?</div>`;
+    return;
+  }
+  total = parseInt((xml.querySelector('totalResults')?.textContent || '0').replace(/,/g, ''), 10) || 0;
+  const items = [...xml.querySelectorAll('item')];
+  const html = items.map(it => {
+    const link = it.querySelector('link')?.textContent || '';
+    const title = it.querySelector('title')?.textContent || link;
+    const book = it.querySelector('book title')?.textContent || '';
+    const snip = (it.querySelector('description')?.textContent || '').replace(/\.{3,}/g, '…');
+    return `<div class="hit"><a class="t" href="${esc(viewer(link))}">${esc(title)}</a>
+      <div class="src">${esc(book)}</div><p>${highlight(snip)}</p></div>`;
+  }).join('');
+  const old = box.querySelector('.more'); if (old) old.remove();
+  if (!append){
+    box.innerHTML = total ? `<div class="count">About ${total.toLocaleString()} results for “${esc(query)}”</div>`
+      : `<div class="msg">No results for “${esc(query)}” in ${scope === 'all' ? 'any library' : esc(GROUPS.find(g => g.id === scope).label)}.` +
+        (scope !== 'all' ? ' <a href="#" data-g="all">Try Everything</a>.' : '') + '</div>';
+  }
+  box.insertAdjacentHTML('beforeend', html);
+  start += items.length;
+  if (start < total && items.length) box.insertAdjacentHTML('beforeend', '<button class="more" type="button">More results</button>');
+}
+
+// Title suggestions while typing: from Wikipedia (or the biggest library in the chosen group).
+async function suggest(){
+  const term = $('#q').value.trim(), box = $('#suggest');
+  sugIdx = -1;
+  if (term.length < 2){ box.style.display = 'none'; return; }
+  const pool = scope === 'all' ? LIBS.filter(l => l.name === 'wikipedia_en_all') : groupLibs(scope);
+  const lib = pool[0] || LIBS[0];
+  if (!lib) return;
+  try {
+    const list = await (await fetch(`/suggest?content=${encodeURIComponent(lib.content)}&term=${encodeURIComponent(term)}&count=8`)).json();
+    if ($('#q').value.trim() !== term) return;   // user kept typing
+    const pages = list.filter(s => s.kind === 'path');
+    if (!pages.length){ box.style.display = 'none'; return; }
+    box.innerHTML = pages.map(s => `<a href="${esc(viewer(lib.content + '/' + s.path))}">${esc(s.value)} <small>· ${esc(lib.title)}</small></a>`).join('');
+    box.style.display = 'block';
+  } catch { box.style.display = 'none'; }
+}
+
+function setHash(){
+  const p = new URLSearchParams(); if (query) p.set('q', query); if (scope !== 'all') p.set('in', scope);
+  history.replaceState(null, '', p.toString() ? '#' + p : location.pathname);
+}
+function go(){
+  query = $('#q').value.trim(); $('#suggest').style.display = 'none';
+  setHash();
+  if (query) runSearch(false); else $('#results').innerHTML = '';
+}
+function setScope(id){ scope = id; drawScopes(); setHash(); if (query) runSearch(false); }
+
+$('#f').addEventListener('submit', e => { e.preventDefault(); go(); });
+$('#q').addEventListener('input', () => { clearTimeout(sugTimer); sugTimer = setTimeout(suggest, 150); });
+$('#q').addEventListener('keydown', e => {
+  const links = [...$('#suggest').querySelectorAll('a')];
+  if ($('#suggest').style.display !== 'block' || !links.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    e.preventDefault();
+    // cycle through -1 (the text box) and 0..n-1 (the suggestions)
+    const n = links.length + 1;
+    sugIdx = ((sugIdx + 1 + (e.key === 'ArrowDown' ? 1 : -1)) % n + n) % n - 1;
+    links.forEach((a, i) => a.classList.toggle('on', i === sugIdx));
+  } else if (e.key === 'Enter' && sugIdx >= 0){ e.preventDefault(); location.href = links[sugIdx].href; }
+  else if (e.key === 'Escape'){ $('#suggest').style.display = 'none'; }
+});
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-g]');
+  if (g){ e.preventDefault(); setScope(g.dataset.g); }
+  if (e.target.closest('.more')) runSearch(true);
+  if (!e.target.closest('form')) $('#suggest').style.display = 'none';
+});
+$('#mapslink').href = `${location.protocol}//${location.hostname}:8090/`;
+$('#hublink').href = `${location.protocol}//${location.hostname}:8000/`;
+
+// Read #q=...&in=... (bookmarks, links shared to phones, back button)
+function fromHash(){
+  const p = new URLSearchParams(location.hash.slice(1));
+  scope = GROUPS.some(g => g.id === p.get('in')) ? p.get('in') : 'all';
+  drawScopes();
+  $('#q').value = p.get('q') || '';
+  if (p.get('q')) go(); else { $('#results').innerHTML = ''; $('#q').focus(); }
+}
+window.addEventListener('hashchange', fromHash);
+
+(async () => {
+  try { await loadCatalog(); }
+  catch { $('#libs').innerHTML = '<div class="msg">Could not load the library list.</div>'; }
+  drawLibraries();
+  fromHash();
+})();
+</script>
+</body>
+</html>

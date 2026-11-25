@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bible Search</title>
+<!-- Offline prepper kit: KJV lookup and search (v1.8.0), served by bin/intranet.py at /bible. Data: /kjv.json -->
+<style>
+:root{
+  --bg:#f6f5f1; --panel:#fff; --ink:#1d1d1b; --muted:#6b6a64; --line:#e3e1da;
+  --accent:#2f6b3a; --accent-ink:#fff; --chip:#ecebe5; --mark:#ffe58a; --hit:#fff4c2; --shadow:0 1px 3px rgba(0,0,0,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#161714; --panel:#20211d; --ink:#ecebe5; --muted:#a3a29a; --line:#34352f;
+    --accent:#7cc48a; --accent-ink:#10200f; --chip:#2b2c27; --mark:#6b5a12; --hit:#3a3518; --shadow:none; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:860px;margin:0 auto;padding:22px 16px 48px}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:28px;letter-spacing:-.01em}
+.top a{font-size:14px;text-decoration:none}
+.sub{margin:4px 0 16px;color:var(--muted)}
+form{display:flex;gap:8px}
+#q{flex:1;min-width:0;font:inherit;font-size:19px;padding:13px 15px;border:2px solid var(--line);border-radius:12px;
+  background:var(--panel);color:var(--ink);outline:none}
+#q:focus{border-color:var(--accent)}
+.go{font:inherit;font-weight:600;padding:0 20px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.opts{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:10px 0 4px;font-size:14px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;padding:6px 11px;border:0;background:var(--panel);color:var(--ink);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+select{font:inherit;font-size:14px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+.examples{font-size:13px;color:var(--muted);margin:6px 0 0}
+.examples a{cursor:pointer;margin-right:8px;white-space:nowrap}
+#status{margin:18px 0 8px;color:var(--muted);font-size:14px}
+#bookcounts{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+#bookcounts button{font:inherit;font-size:12.5px;padding:3px 9px;border:1px solid var(--line);border-radius:999px;background:var(--chip);color:var(--ink);cursor:pointer}
+#bookcounts button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.hit{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin:0 0 8px;box-shadow:var(--shadow)}
+.hit .ref{font-weight:600;text-decoration:none}
+.hit .t{font:17px/1.55 Georgia,"Times New Roman",serif;margin-top:2px}
+mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 1px}
+.more{display:block;margin:12px auto;font:inherit;padding:9px 18px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);cursor:pointer}
+.chapter{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow)}
+.chapter h2{margin:0 0 8px;font:600 24px Georgia,"Times New Roman",serif;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.chapter h2 small{font:13px -apple-system,system-ui,sans-serif}
+.v{font:18px/1.65 Georgia,"Times New Roman",serif;margin:0 0 4px;padding:1px 4px;border-radius:5px}
+.v.on{background:var(--hit)}
+.v sup{font:600 11px system-ui,sans-serif;color:var(--accent);margin-right:4px;cursor:pointer}
+.v i{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:8px;margin-top:12px;font-size:14px}
+.nav a{text-decoration:none;padding:6px 10px;border:1px solid var(--line);border-radius:8px}
+.actions{font-size:13px;margin-left:6px;white-space:nowrap}
+.actions a{cursor:pointer;margin-left:8px}
+.books h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.grid a,.chgrid a{display:block;padding:7px 10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink);font-size:14px}
+.chgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px}
+.chgrid a{text-align:center}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:9px;font-size:14px;display:none}
+footer{margin-top:36px;color:var(--muted);font-size:13px}
+@media (max-width:520px){ h1{font-size:23px} .go{padding:0 14px} #q{font-size:17px} .v{font-size:17px} }
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<div class="wrap">
+  <div class="top"><h1>Bible Search</h1></div>
+  <p class="sub">King James Version. Look up a verse or search words and phrases. No internet needed.</p>
+
+  <form id="f" autocomplete="off">
+    <input id="q" type="search" placeholder='John 3:16 · Ps 23 · "my shepherd" · faith hope charity' aria-label="Reference, words or phrase" autofocus>
+    <button class="go" type="submit">Search</button>
+  </form>
+  <div class="opts">
+    <span>Words:</span>
+    <span class="seg" id="mode">
+      <button type="button" data-m="all" aria-pressed="true">All words</button>
+      <button type="button" data-m="phrase" aria-pressed="false">Exact phrase</button>
+      <button type="button" data-m="any" aria-pressed="false">Any word</button>
+    </span>
+    <label>In: <select id="scope"></select></label>
+  </div>
+  <div class="examples">Try:
+    <a data-q="John 3:16">John 3:16</a><a data-q="Psalm 23">Psalm 23</a><a data-q="1 Cor 13:4-8">1 Cor 13:4-8</a>
+    <a data-q="Matt 5:3-12; Luke 6:20-23">Matt 5:3-12; Luke 6:20-23</a><a data-q='"the lord is my shepherd"'>"the lord is my shepherd"</a>
+    <a data-q="love one another">love one another</a><a data-q="shepherd*">shepherd*</a>
+  </div>
+
+  <div id="status">Loading the Bible…</div>
+  <div id="bookcounts"></div>
+  <div id="out"></div>
+  <footer>Offline prepper kit v1.11.0 · KJV text (1769) from eBible.org, public domain · Words in <i>italics</i> were supplied by the translators.
+    Tips: put words in "quotes" for an exact phrase, end a word with * to match its start (bless* → blessed, blessing).</footer>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let BOOKS = [];         // [{name, chapters: [[text,...],...]}]
+let FLAT = [];          // [{b, c, v, plain, norm}]
+let ZIM = null;         // library file name, for "open in library" links
+let mode = 'all', scope = 'all', bookFilter = -1, lastHits = [], shown = 0;
+const PAGE = 100, OT = 39;
+
+// ---------- Book names and abbreviations ----------
+const ABBR = {
+  'Genesis':'gen ge gn','Exodus':'ex exo exod','Leviticus':'lev le lv','Numbers':'num nu nm nb','Deuteronomy':'deut deu de dt',
+  'Joshua':'josh jos jsh','Judges':'judg jdg jg jdgs','Ruth':'ru rth','1 Samuel':'1sam 1sa 1sm 1s','2 Samuel':'2sam 2sa 2sm 2s',
+  '1 Kings':'1kgs 1ki 1kg 1k','2 Kings':'2kgs 2ki 2kg 2k','1 Chronicles':'1chr 1ch 1chron','2 Chronicles':'2chr 2ch 2chron',
+  'Ezra':'ezr','Nehemiah':'neh ne','Esther':'esth est es','Job':'jb','Psalms':'ps psa psalm pss psm','Proverbs':'prov pro pr prv',
+  'Ecclesiastes':'eccl ecc eccles ec qoh','Song of Solomon':'song sos so songofsongs canticles cant sng','Isaiah':'isa is',
+  'Jeremiah':'jer je jr','Lamentations':'lam la','Ezekiel':'ezek eze ezk','Daniel':'dan da dn','Hosea':'hos ho','Joel':'jl',
+  'Amos':'am','Obadiah':'obad ob','Jonah':'jon jnh','Micah':'mic mc','Nahum':'nah na','Habakkuk':'hab hb','Zephaniah':'zeph zep zp',
+  'Haggai':'hag hg','Zechariah':'zech zec zc','Malachi':'mal ml','Matthew':'matt mat mt','Mark':'mk mr mar mrk','Luke':'lk lu luk',
+  'John':'jn jhn joh','Acts':'ac act','Romans':'rom ro rm','1 Corinthians':'1cor 1co','2 Corinthians':'2cor 2co','Galatians':'gal ga',
+  'Ephesians':'eph ep','Philippians':'phil php pp','Colossians':'col','1 Thessalonians':'1thess 1th 1ts 1thes','2 Thessalonians':'2thess 2th 2ts 2thes',
+  '1 Timothy':'1tim 1ti 1tm','2 Timothy':'2tim 2ti 2tm','Titus':'tit ti','Philemon':'philem phm phlm','Hebrews':'heb he',
+  'James':'jas jm jam','1 Peter':'1pet 1pe 1pt 1p','2 Peter':'2pet 2pe 2pt 2p','1 John':'1jn 1jo 1jhn 1joh','2 John':'2jn 2jo 2jhn 2joh',
+  '3 John':'3jn 3jo 3jhn 3joh','Jude':'jud jd','Revelation':'rev re rv revelations apocalypse'
+};
+let ALIAS = {};          // normalized alias -> book index
+const normBook = s => s.toLowerCase().replace(/\./g, '')
+  .replace(/^(first|1st|i)\s+/, '1').replace(/^(second|2nd|ii)\s+/, '2').replace(/^(third|3rd|iii)\s+/, '3')
+  .replace(/\s+/g, '');
+function findBook(s){
+  const n = normBook(s);
+  if (!n) return -1;
+  if (n in ALIAS) return ALIAS[n];
+  const starts = BOOKS.map((b, i) => [normBook(b.name), i]).filter(([k]) => k.startsWith(n));
+  return starts.length === 1 ? starts[0][1] : -1;   // unique beginning of a name: "phile", "lament"
+}
+
+// ---------- References: "John 3:16", "Ps 23", "1 Cor 13:4-8", "Gen 1-3", "Jude 5", several with ";" ----------
+const REF = /^\s*((?:[123]|i{1,3}|first|second|third|1st|2nd|3rd)?\s*[a-z][a-z .]*?)\.?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(\d+))?|\s*[-–]\s*(\d+))?\s*$/i;
+function parseRefs(text){
+  const parts = text.split(';').map(s => s.trim()).filter(Boolean);
+  const out = [];
+  let lastBook = -1;
+  for (const p of parts){
+    let m = p.match(REF);
+    if (!m && lastBook >= 0 && /^\s*\d/.test(p)) m = (BOOKS[lastBook].name + ' ' + p).match(REF);  // "John 3:16; 4:1"
+    if (!m){
+      // A book name alone shows its chapter list. Needs 3+ letters (or "1 John"), because short
+      // abbreviations are also common words: is (Isaiah), am (Amos), he (Hebrews), so (Song).
+      const n = normBook(p), b = /^[123]?[a-z]{3,}$/.test(n) ? findBook(p) : -1;
+      if (b >= 0){ out.push({b, book: true}); lastBook = b; continue; }
+      return null;
+    }
+    const b = findBook(m[1]);
+    if (b < 0) return null;
+    lastBook = b;
+    let c = +m[2], v1 = m[3] ? +m[3] : 0, v2 = m[4] ? +m[4] : v1, c2 = m[5] ? +m[5] : c;
+    if (BOOKS[b].chapters.length === 1 && !m[3]){ v1 = c; v2 = m[5] ? +m[5] : c; c = c2 = 1; }  // "Jude 5" = verse 5
+    if (c < 1 || c > BOOKS[b].chapters.length) return [{error: `${BOOKS[b].name} has ${BOOKS[b].chapters.length} chapter${BOOKS[b].chapters.length > 1 ? 's' : ''}.`}];
+    out.push({b, c, c2: Math.min(Math.max(c2, c), BOOKS[b].chapters.length), v1, v2: Math.max(v2, v1)});
+  }
+  return out.length ? out : null;
+}
+
+// ---------- Word and phrase search ----------
+const plainText = t => t.replace(/¶/g, '').replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim();
+const normText = t => ' ' + t.toLowerCase().replace(/[’‘]/g, "'").replace(/[^a-z0-9']+/g, ' ').replace(/'(?![a-z])|(?<![a-z])'/g, ' ').trim() + ' ';
+function parseQuery(q){
+  const terms = [];
+  q = q.replace(/"([^"]+)"/g, (_, ph) => { const w = normText(ph).trim(); if (w) terms.push({phrase: true, w}); return ' '; });
+  // words; a trailing * means "starts with" (bless* → blessed, blessing)
+  for (const raw of q.split(/\s+/).filter(Boolean)){
+    const w = normText(raw.replace(/\*$/, '')).trim();
+    if (!w) continue;
+    for (const part of w.split(' ')) terms.push({phrase: false, w: part, prefix: /\*$/.test(raw)});
+  }
+  if (mode === 'phrase' && terms.length && !terms.some(t => t.phrase)){
+    return [{phrase: true, w: terms.map(t => t.w).join(' ')}];
+  }
+  return terms;
+}
+function matches(norm, t){
+  if (t.phrase) return norm.includes(' ' + t.w + ' ');
+  return t.prefix ? norm.includes(' ' + t.w) : norm.includes(' ' + t.w + ' ');
+}
+function searchText(q){
+  const terms = parseQuery(q);
+  if (!terms.length) return {terms, hits: []};
+  const inScope = v => scope === 'all' || (scope === 'ot' ? v.b < OT : scope === 'nt' ? v.b >= OT : v.b === +scope);
+  const hits = FLAT.filter(v => inScope(v) &&
+    (mode === 'any' ? terms.some(t => matches(v.norm, t)) : terms.every(t => matches(v.norm, t))));
+  return {terms, hits};
+}
+function highlight(text, terms){
+  let h = esc(text);
+  const pats = terms.map(t => t.phrase
+    ? t.w.split(' ').map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join("[^a-z0-9']+")
+    : t.w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + (t.prefix ? "[a-z']*" : ''));
+  if (!pats.length) return h;
+  const re = new RegExp(`(?<![a-z0-9'’])(${pats.join('|')})(?![a-z0-9])`, 'gi');
+  return h.replace(re, '<mark>$1</mark>');
+}
+
+// ---------- Rendering ----------
+const refOf = (b, c, v) => `${BOOKS[b].name} ${c}${v ? ':' + v : ''}`;
+const verseHTML = t => esc(t.replace(/¶\s*/g, '')).replace(/\[([^\]]+)\]/g, '<i>$1</i>');
+function libLink(b, c, v){
+  if (!ZIM) return '';
+  const u = `${location.protocol}//${location.hostname}:8080/viewer#${ZIM}/${BOOKS[b].name.replace(/ /g, '_')}_${c}${v ? '#v' + v : ''}`;
+  return `<a href="${esc(u)}" target="_blank">library</a>`;
+}
+function chapterBlock(b, c, v1 = 0, v2 = 0, onlyRange = false){
+  const verses = BOOKS[b].chapters[c - 1];
+  const from = onlyRange && v1 ? v1 : 1, to = onlyRange && v1 ? Math.min(v2, verses.length) : verses.length;
+  let rows = '';
+  for (let v = from; v <= to; v++){
+    rows += `<p class="v${v1 && v >= v1 && v <= v2 ? ' on' : ''}" id="v-${b}-${c}-${v}"><sup data-copy="${b},${c},${v}" title="Copy verse">${v}</sup>${verseHTML(verses[v - 1])}</p>`;
+  }
+  const title = onlyRange && v1 ? `${refOf(b, c, v1)}${v2 > v1 ? '-' + v2 : ''}` : refOf(b, c);
+  const prev = c > 1 ? [b, c - 1] : b > 0 ? [b - 1, BOOKS[b - 1].chapters.length] : null;
+  const next = c < BOOKS[b].chapters.length ? [b, c + 1] : b < BOOKS.length - 1 ? [b + 1, 1] : null;
+  const nav = onlyRange && v1
+    ? `<div class="nav"><span></span><a href="#q=${encodeURIComponent(refOf(b, c))}&v=${v1}-${v2}">Whole chapter →</a></div>`
+    : `<div class="nav">${prev ? `<a href="#q=${encodeURIComponent(refOf(...prev))}">← ${esc(refOf(...prev))}</a>` : '<span></span>'}` +
+      `${next ? `<a href="#q=${encodeURIComponent(refOf(...next))}">${esc(refOf(...next))} →</a>` : '<span></span>'}</div>`;
+  return `<div class="chapter"><h2>${esc(title)}<small class="actions"><a data-copyrange="${b},${c},${from},${to}">copy</a>${libLink(b, c, v1) ? ' · ' + libLink(b, c, v1) : ''}</small></h2>${rows}${nav}</div>`;
+}
+function bookBlock(b){
+  return `<div class="chapter"><h2>${esc(BOOKS[b].name)}<small>${BOOKS[b].chapters.length} chapters</small></h2><div class="chgrid">` +
+    BOOKS[b].chapters.map((_, i) => `<a href="#q=${encodeURIComponent(refOf(b, i + 1))}">${i + 1}</a>`).join('') + '</div></div>';
+}
+function showBooks(){
+  const g = (from, to) => '<div class="grid">' + BOOKS.slice(from, to).map((bk, i) =>
+    `<a href="#q=${encodeURIComponent(bk.name)}">${esc(bk.name)}</a>`).join('') + '</div>';
+  $('#status').textContent = 'Type a reference or words above, or pick a book.';
+  $('#bookcounts').innerHTML = '';
+  $('#out').innerHTML = `<div class="books"><h3>Old Testament</h3>${g(0, OT)}<h3>New Testament</h3>${g(OT)}</div>`;
+}
+
+function showRefs(refs, highlightRange){
+  $('#bookcounts').innerHTML = '';
+  if (refs[0].error){ $('#status').textContent = refs[0].error; $('#out').innerHTML = ''; return; }
+  const blocks = [];
+  for (const r of refs){
+    if (r.book){ blocks.push(bookBlock(r.b)); continue; }
+    for (let c = r.c; c <= r.c2; c++){
+      const n = BOOKS[r.b].chapters[c - 1].length;
+      if (r.v1 && r.v1 > n){ blocks.push(`<div class="chapter">${esc(refOf(r.b, c))} has ${n} verses.</div>`); continue; }
+      // Verses asked for (John 3:16, 1 Cor 13:4-8): show just those, with a "Whole chapter" link.
+      // A chapter range with verses (rare) or a bare chapter shows whole chapters.
+      blocks.push(chapterBlock(r.b, c, r.v1, r.v2 || r.v1, !!r.v1 && r.c === r.c2));
+    }
+  }
+  if (highlightRange && refs.length === 1 && !refs[0].v1){
+    const [a, z] = highlightRange.split('-').map(Number);
+    blocks[0] = chapterBlock(refs[0].b, refs[0].c, a, z || a);
+  }
+  $('#status').textContent = '';
+  $('#out').innerHTML = blocks.join('');
+  const first = document.querySelector('.v.on');
+  if (first) first.scrollIntoView({block: 'center'}); else window.scrollTo(0, 0);
+}
+
+function showHits(q){
+  const {terms, hits} = searchText(q);
+  lastHits = hits; shown = 0; bookFilter = -1;
+  if (!terms.length){ showBooks(); return; }
+  const where = scope === 'all' ? 'the Bible' : scope === 'ot' ? 'the Old Testament' : scope === 'nt' ? 'the New Testament' : BOOKS[+scope].name;
+  $('#status').textContent = hits.length
+    ? `${hits.length.toLocaleString()} verse${hits.length > 1 ? 's' : ''} in ${where}` + (mode === 'phrase' || terms.some(t => t.phrase) ? ' (exact phrase)' : mode === 'any' ? ' (any word)' : '')
+    : `No verses in ${where} match that.` + (mode === 'all' && terms.length > 1 ? ' Try “Any word”.' : '') +
+      (/\b(love is patient|love never fails)\b/i.test(q) ? ' (The KJV says “charity suffereth long”.)' : '');
+  const counts = {};
+  hits.forEach(v => counts[v.b] = (counts[v.b] || 0) + 1);
+  const keys = Object.keys(counts).map(Number);
+  $('#bookcounts').innerHTML = keys.length > 1 ? `<button aria-pressed="true" data-bf="-1">All books</button>` +
+    keys.map(b => `<button aria-pressed="false" data-bf="${b}">${esc(BOOKS[b].name)} ${counts[b]}</button>`).join('') : '';
+  $('#out').innerHTML = '';
+  window.__terms = terms;
+  moreHits();
+}
+function moreHits(){
+  const list = bookFilter < 0 ? lastHits : lastHits.filter(v => v.b === bookFilter);
+  const slice = list.slice(shown, shown + PAGE);
+  shown += slice.length;
+  const html = slice.map(v => `<div class="hit"><a class="ref" href="#q=${encodeURIComponent(refOf(v.b, v.c))}&v=${v.v}">${esc(refOf(v.b, v.c, v.v))}</a>` +
+    `<span class="actions"><a data-copy="${v.b},${v.c},${v.v}">copy</a></span><div class="t">${highlight(v.plain, window.__terms)}</div></div>`).join('');
+  document.querySelector('#out .more')?.remove();
+  $('#out').insertAdjacentHTML('beforeend', html + (shown < list.length ? `<button class="more">Show more (${(list.length - shown).toLocaleString()} left)</button>` : ''));
+}
+
+// ---------- Main flow (state lives in the URL: #q=...&m=phrase&in=nt) ----------
+function run(){
+  const p = new URLSearchParams(location.hash.slice(1));
+  const q = p.get('q') || '';
+  mode = ['all', 'phrase', 'any'].includes(p.get('m')) ? p.get('m') : 'all';
+  scope = p.get('in') || 'all';
+  if (!$('#scope').querySelector(`option[value="${CSS.escape(scope)}"]`)) scope = 'all';
+  document.querySelectorAll('#mode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === mode));
+  $('#scope').value = scope;
+  $('#q').value = q;
+  if (!q.trim()){ showBooks(); return; }
+  const refs = /^\s*"/.test(q) ? null : parseRefs(q);
+  if (refs) showRefs(refs, p.get('v')); else showHits(q);
+}
+function go(q){
+  const p = new URLSearchParams();
+  p.set('q', q);
+  if (mode !== 'all') p.set('m', mode);
+  if (scope !== 'all') p.set('in', scope);
+  const h = '#' + p.toString();
+  if (location.hash === h) run(); else location.hash = h;
+}
+
+function toast(t){ const e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 1600); }
+async function copy(text){
+  try { await navigator.clipboard.writeText(text); }
+  catch {  // phones on http:// (not localhost) have no clipboard API
+    const ta = Object.assign(document.createElement('textarea'), {value: text});
+    document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  toast('Copied');
+}
+
+$('#f').addEventListener('submit', e => { e.preventDefault(); go($('#q').value.trim()); });
+$('#mode').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  mode = b.dataset.m; if ($('#q').value.trim()) go($('#q').value.trim()); else run();
+});
+$('#scope').addEventListener('change', () => { scope = $('#scope').value; if ($('#q').value.trim()) go($('#q').value.trim()); });
+document.addEventListener('click', e => {
+  const ex = e.target.closest('[data-q]'); if (ex){ mode = /^"/.test(ex.dataset.q) ? 'all' : mode; go(ex.dataset.q); return; }
+  if (e.target.closest('.more')){ moreHits(); return; }
+  const bf = e.target.closest('[data-bf]');
+  if (bf){ bookFilter = +bf.dataset.bf; shown = 0; $('#out').innerHTML = '';
+    document.querySelectorAll('#bookcounts button').forEach(x => x.setAttribute('aria-pressed', x === bf)); moreHits(); return; }
+  const c1 = e.target.closest('[data-copy]');
+  if (c1){ const [b, c, v] = c1.dataset.copy.split(',').map(Number);
+    copy(`${refOf(b, c, v)} “${plainText(BOOKS[b].chapters[c - 1][v - 1])}” (KJV)`); return; }
+  const cr = e.target.closest('[data-copyrange]');
+  if (cr){ const [b, c, f, t] = cr.dataset.copyrange.split(',').map(Number);
+    const vs = BOOKS[b].chapters[c - 1].slice(f - 1, t).map((x, i) => `${f + i} ${plainText(x)}`).join('\n');
+    copy(`${refOf(b, c)}${f > 1 || t < BOOKS[b].chapters[c - 1].length ? ':' + f + (t > f ? '-' + t : '') : ''} (KJV)\n${vs}`); }
+});
+window.addEventListener('hashchange', run);
+
+(async () => {
+  try {
+    const [d, info] = await Promise.all([
+      fetch('/kjv.json').then(r => { if (!r.ok) throw 0; return r.json(); }),
+      fetch('/bible-info.json').then(r => r.ok ? r.json() : {}).catch(() => ({}))]);
+    ZIM = info.zim || null;
+    BOOKS = d.books.map(([name, chapters]) => ({name, chapters}));
+    BOOKS.forEach((bk, i) => {
+      ALIAS[normBook(bk.name)] = i;
+      (ABBR[bk.name] || '').split(' ').filter(Boolean).forEach(a => ALIAS[a] = i);
+      bk.chapters.forEach((vs, c) => vs.forEach((t, v) => {
+        const plain = plainText(t);
+        FLAT.push({b: i, c: c + 1, v: v + 1, plain, norm: normText(plain)});
+      }));
+    });
+    $('#scope').innerHTML = '<option value="all">Whole Bible</option><option value="ot">Old Testament</option><option value="nt">New Testament</option>' +
+      '<optgroup label="Book">' + BOOKS.map((b, i) => `<option value="${i}">${esc(b.name)}</option>`).join('') + '</optgroup>';
+    run();
+  } catch {
+    $('#status').textContent = 'Could not load the Bible text (/kjv.json). Run bible/build-bible.sh, then restart runhomeintra.';
+  }
+})();
+</script>
+</body>
+</html>

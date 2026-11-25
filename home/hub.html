@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home Intranet</title>
+<!-- Offline prepper kit hub, served by bin/intranet.py (runhomeintra). No internet needed. -->
+<style>
+:root{
+  --bg:#f6f5f1; --panel:#fff; --ink:#1d1d1b; --muted:#6b6a64; --line:#e3e1da;
+  --accent:#2f6b3a; --accent-ink:#fff; --chip:#ecebe5; --up:#2f8a43; --down:#b8402f; --shadow:0 1px 3px rgba(0,0,0,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#161714; --panel:#20211d; --ink:#ecebe5; --muted:#a3a29a; --line:#34352f;
+    --accent:#7cc48a; --accent-ink:#10200f; --chip:#2b2c27; --up:#7cc48a; --down:#e0806f; --shadow:none; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:inherit}
+.wrap{max-width:920px;margin:0 auto;padding:28px 16px 48px}
+h1{margin:0;font-size:30px;letter-spacing:-.01em}
+.sub{margin:4px 0 22px;color:var(--muted)}
+.searchrow{display:flex;gap:8px;margin-bottom:26px}
+#q{flex:1;min-width:0;font:inherit;font-size:19px;padding:14px 16px;border:2px solid var(--line);border-radius:12px;
+  background:var(--panel);color:var(--ink);outline:none}
+#q:focus{border-color:var(--accent)}
+.go{font:inherit;font-weight:600;padding:0 22px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.card{display:block;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;
+  text-decoration:none;box-shadow:var(--shadow)}
+.card:hover{border-color:var(--accent)}
+.card .ico{font-size:30px;line-height:1}
+.card h2{margin:10px 0 4px;font-size:19px}
+.card p{margin:0;color:var(--muted);font-size:14px}
+.status{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:13px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.dot.up{background:var(--up)} .dot.down{background:var(--down)}
+h3{font-size:17px;margin:34px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+details{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:8px 0;box-shadow:var(--shadow)}
+summary{cursor:pointer;padding:11px 14px;font-weight:600;text-transform:capitalize}
+summary small{font-weight:400;color:var(--muted);text-transform:none}
+details ul{margin:0;padding:0 14px 12px 32px}
+details li{margin:3px 0}
+details li small{color:var(--muted)}
+.tips{color:var(--muted);font-size:14px}
+.tips b{color:var(--ink)}
+footer{margin-top:40px;color:var(--muted);font-size:13px}
+@media (max-width:520px){ h1{font-size:24px} .go{padding:0 14px} #q{font-size:17px} }
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<div class="wrap">
+  <h1>Home Intranet</h1>
+  <p class="sub">Everything on this kit, on any phone or computer on the Wi-Fi. No internet needed.</p>
+
+  <form class="searchrow" id="f" autocomplete="off">
+    <input id="q" type="search" placeholder="Search all libraries… e.g. water filter, splint, Rocky" aria-label="Search all libraries">
+    <button class="go" type="submit">Search</button>
+  </form>
+
+  <div class="cards">
+    <a class="card" id="lib" href="#">
+      <div class="ico">📚</div><h2>Library</h2>
+      <p>Wikipedia, medical, survival, repair, cooking, ham radio, travel and programming. Search one group or all of them.</p>
+      <span class="status"><span class="dot" data-svc="library"></span><span data-svc-label="library">checking…</span></span>
+    </a>
+    <a class="card" id="maps" href="#">
+      <div class="ico">🗺️</div><h2>Maps &amp; directions</h2>
+      <p>Street map of the whole US with turn-by-turn driving directions and town search.</p>
+      <span class="status"><span class="dot" data-svc="maps"></span><span data-svc-label="maps">checking…</span></span>
+    </a>
+    <a class="card" id="bible" href="/bible">
+      <div class="ico">📖</div><h2>Holy Bible</h2>
+      <p>King James Version. Look up any verse (John 3:16, Ps 23) or search words and exact phrases.</p>
+      <span class="status"><span class="dot" data-svc="library"></span><span data-svc-label="library">checking…</span></span>
+    </a>
+    <a class="card" href="#guides">
+      <div class="ico">📄</div><h2>PDF guides</h2>
+      <p>Army survival manuals, FEMA, water disinfection, home canning, Where There Is No Doctor and more.</p>
+      <span class="status"><span class="dot up"></span><span id="guidecount">loading…</span></span>
+    </a>
+  </div>
+
+  <h3 id="guides">PDF guides</h3>
+  <div id="guidelist"><p class="tips">Loading…</p></div>
+
+  <h3>Tips</h3>
+  <p class="tips"><b>Phones:</b> join the same Wi-Fi and open this page at the address shown in the terminal
+    (it looks like <span id="addr"></span>). Add it to your home screen for one-tap access.<br>
+    <b>Library search:</b> pick a group (Medical, Survival, Fix &amp; build…) under the search box to narrow it down.<br>
+    <b>Directions</b> are ready a few seconds after starting.<br>
+    <b>Bible:</b> type a verse phrase in the search box above, or pick the Bible group in the library to search only the Bible.</p>
+
+  <footer>Offline prepper kit v1.11.0 · started with <code>runhomeintra</code></footer>
+</div>
+<script>
+const host = location.hostname, proto = location.protocol;
+const LIB = `${proto}//${host}:8080/`, MAPS = `${proto}//${host}:8090/`;
+document.getElementById('lib').href = LIB;
+document.getElementById('maps').href = MAPS;
+document.getElementById('addr').textContent = location.host;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+document.getElementById('f').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = document.getElementById('q').value.trim();
+  location.href = LIB + (q ? '#q=' + encodeURIComponent(q) : '');
+});
+
+async function status(){
+  try {
+    const s = await (await fetch('/status.json', {cache: 'no-store'})).json();
+    for (const [name, up] of Object.entries(s)){
+      document.querySelectorAll(`[data-svc="${name}"]`).forEach(d => d.className = 'dot ' + (up ? 'up' : 'down'));
+      document.querySelectorAll(`[data-svc-label="${name}"]`).forEach(d => d.textContent = up ? 'running' : 'not running');
+    }
+  } catch {}
+}
+status(); setInterval(status, 10000);
+
+(async () => {
+  try {
+    const g = await (await fetch('/guides.json')).json();
+    const n = Object.values(g).reduce((a, l) => a + l.length, 0);
+    document.getElementById('guidecount').textContent = `${n} PDFs`;
+    document.getElementById('guidelist').innerHTML = Object.entries(g).map(([folder, list]) =>
+      `<details><summary>${esc(folder.replace(/\//g, ' › ').replace(/-/g, ' '))} <small>(${list.length})</small></summary><ul>` +
+      list.map(f => `<li><a href="${esc(f.url)}" target="_blank">${esc(f.name)}</a> <small>${f.mb} MB</small></li>`).join('') +
+      '</ul></details>').join('') || '<p class="tips">No guides found.</p>';
+  } catch {
+    document.getElementById('guidelist').innerHTML = '<p class="tips">Could not load the guide list.</p>';
+  }
+})();
+</script>
+</body>
+</html>

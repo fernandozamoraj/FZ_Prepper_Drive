@@ -1,5 +1,12 @@
 # Changelog: offline prepper kit
 
+## 1.14.1 (2026-11-26)
+- Updating without restarting no longer just shows "404 Not Found": the hub reports its version in `/ports.json`, and the
+  header bar (`nav.js`, read fresh from disk) shows **"Restart the kit to finish updating"** when the running hub is
+  older than the files (hubs from before 1.13.3, which have no `/ports.json`, are recognised by `/status.json`).
+- Unknown addresses on the hub get a readable "Page not found" page with a link home and the same restart hint,
+  instead of Python's bare error.
+
 ## 1.14.0 (2026-11-26)
 Optional modules: books, audiobooks, movies and a software center. None of them is part of `install all`.
 - `kit books` (menu), `books list|get WORDS`: 63 books. Math, nursing, science, business and history textbooks from

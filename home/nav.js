@@ -1,4 +1,4 @@
-/* nav.js (offline prepper kit v1.14.0): the header bar on every page of the kit:
+/* nav.js (offline prepper kit v1.14.1): the header bar on every page of the kit:
    ⌂ Home (hub, port 8000) · Library (8080) · Bible (8000/bible) · Maps (8090) · Books · Movies · Software (8000/...).
    The library and map ports can move when another program has them: the hub's /ports.json says where they are,
    and window.fzKit (.lib, .maps, .hub, .ready) gives other page scripts the current addresses.
@@ -12,12 +12,15 @@
   window.__fznav = true;
 
   const h = location.hostname, p = location.protocol, port = location.port || (p === 'https:' ? '443' : '80');
+  const NAV_VERSION = '1.14.1';  // = intranet.py VERSION; a running hub that reports another one is older: restart it
   const K = window.fzKit = {ports: {hub: 8000, library: 8080, maps: 8090}};
   const at = n => `${p}//${h}:${K.ports[n]}/`;
   Object.defineProperties(K, {hub: {get: () => at('hub')}, lib: {get: () => at('library')}, maps: {get: () => at('maps')}});
   const getPorts = u => fetch(u, {cache: 'no-store'}).then(r => { if (!r.ok) throw 0; return r.json(); });
   K.ready = getPorts(`${p}//${h}:8000/ports.json`).catch(() => getPorts('/ports.json'))  // 2nd: a hub on another port
-    .then(j => { Object.assign(K.ports, j); return K; }).catch(() => K);
+    .then(j => { K.hubVersion = j.version || 'older'; delete j.version; Object.assign(K.ports, j); return K; })
+    // No /ports.json at all: a hub from before 1.13.3 still answers /status.json (only the hub does)
+    .catch(() => fetch('/status.json', {cache: 'no-store'}).then(r => { if (r.ok) K.hubVersion = 'older'; return K; }, () => K));
 
   function current() {
     if (port === String(K.ports.maps)) return 'maps';
@@ -84,6 +87,22 @@
         a.href = href[a.dataset.sec];
         a.dataset.sec === c ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
       });
+    });
+
+    // The kit's files were updated but the kit running now is the old one (it was not restarted): its server
+    // doesn't know the new pages yet. Say so, instead of letting people hit "404 Not Found".
+    K.ready.then(() => {
+      if (!K.hubVersion || K.hubVersion === NAV_VERSION || document.getElementById('fz-restart')) return;
+      const bar = document.createElement('div');
+      bar.id = 'fz-restart';
+      bar.setAttribute('role', 'status');
+      bar.style.cssText = 'background:#fff3cd;color:#3d2e00;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
+        'padding:8px 14px;border-bottom:1px solid #e8cf8a;position:relative;z-index:2147482999';
+      bar.innerHTML = `<b>Restart the kit to finish updating.</b> Its files are version ${NAV_VERSION}, but the kit that is ` +
+        `running is ${K.hubVersion === 'older' ? 'an older version' : 'version ' + K.hubVersion}, so new pages (Books, Movies, Software) ` +
+        `won't open yet. On the computer running it, close the kit's window (or press Ctrl+C) and start it again.`;
+      if (nav.classList.contains('fz-overlay')) bar.style.cssText += ';position:fixed;top:40px;left:0;right:0';
+      nav.insertAdjacentElement('afterend', bar);
     });
 
     // Library articles with a location (Wikipedia, Wikivoyage...) link to the offline map

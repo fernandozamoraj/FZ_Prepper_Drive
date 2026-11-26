@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.14.0).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.14.1).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -15,6 +15,7 @@ Optional modules (bin/catalog.py): /books, /movies (+ /movies/add, how to add yo
 /books.json, /movies.json, /software.json; their files are served from /files/<books|audiobooks|movies|software>/
 with byte ranges, so videos and audiobooks stream and seek (iPhones need that).
 """
+import html
 import http.server
 import json
 import os
@@ -33,6 +34,7 @@ import kitplatform  # noqa: E402
 import catalog  # noqa: E402  (books, audiobooks, movies, software)
 import mimetypes  # noqa: E402
 
+VERSION = "1.14.1"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
 KIT = kitplatform.KIT
 GUIDES = os.path.join(KIT, "guides")
 PORTS = {"library": 8080, "maps": 8090}
@@ -183,7 +185,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.unquote(self.path.split("?", 1)[0])
         if path == "/ports.json":  # read by nav.js on every page (library and map are other origins)
-            return self.send_json({"hub": self.server.server_address[1], **PORTS}, cors=True)
+            return self.send_json({"hub": self.server.server_address[1], **PORTS, "version": VERSION}, cors=True)
         if path == "/status.json":
             return self.send_json({n: port_up(p) and is_ours(n, p) for n, p in PORTS.items()})
         if path == "/guides.json":
@@ -213,17 +215,34 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if path in ("/", "/index.html"):
             self.path = "/home/hub.html"
         elif not path.startswith("/guides/") or ".." in path:
-            return self.send_error(404)
+            return self.not_found()
         return super().do_GET()
+
+    def not_found(self):
+        """A readable page instead of Python's bare "Error response 404"."""
+        body = (f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Page Not Found</title>
+<link rel="stylesheet" href="/media.css"></head><body><script src="/nav.js"></script><div class="wrap">
+<h1>Page not found</h1><p class="sub">There is nothing at <code>{html.escape(urllib.parse.unquote(self.path))}</code> on this kit.</p>
+<p><a class="btn primary" href="/">⌂ Go to the Home page</a></p>
+<p class="tips">If you just updated the kit, close its window (or press Ctrl+C) and start it again: the kit that is
+running may be an older version that doesn't have this page yet.</p>
+<footer>Offline prepper kit v{VERSION}</footer></div></body></html>""").encode()
+        self.send_response(404)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def send_file(self, rel):
         """A file from books/, audiobooks/, movies/ or software/, with Range support (video seeking, iOS)."""
         parts = rel.split("/")
         if parts[0] not in FILE_ROOTS or any(p in ("", ".", "..") or p.startswith(".") for p in parts):
-            return self.send_error(404)
+            return self.not_found()
         path = os.path.join(KIT, *parts)
         if not os.path.isfile(path):
-            return self.send_error(404)
+            return self.not_found()
         size = os.path.getsize(path)
         start, end = 0, size - 1
         rng = self.headers.get("Range", "")

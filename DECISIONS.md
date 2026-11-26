@@ -160,3 +160,9 @@
   `checksums.json`), not from its download date: a program that simply had no new release isn't flagged after an
   update run.
 
+## 2026-11-26: Detect a kit that was updated but not restarted
+- The hub reads pages and `nav.js` from disk on every request but its own routes only at start, so after an update the
+  new header links pointed at pages the old process didn't know (404). Rather than make every page cope, the header bar
+  compares its own version with the hub's (`/ports.json` "version") and asks for a restart. `NAV_VERSION` in
+  `home/nav.js` and `VERSION` in `bin/intranet.py` must be bumped together.
+

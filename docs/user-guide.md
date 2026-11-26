@@ -1,4 +1,4 @@
-# Offline prepper kit: user guide and version notes (v1.14.0)
+# Offline prepper kit: user guide and version notes (v1.14.1)
 
 v1.11.0: **one drive that runs on Windows and Mac**, for anyone: plug it in, double-click
 `Start Prepper Kit (Windows).bat` or `Start Prepper Kit (Mac).command`, and the browser opens the Home page.

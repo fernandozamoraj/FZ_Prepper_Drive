@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.14.0)
+# FZ Prepper Drive (offline prepper kit v1.14.1)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with

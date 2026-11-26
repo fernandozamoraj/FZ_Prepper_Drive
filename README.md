@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.14.1)
+# FZ Prepper Drive (offline prepper kit v1.15.0)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
@@ -143,6 +143,12 @@ old version. `software check` just lists what's behind. The Software page (and i
 hasn't been checked for updates in more than **4 months**, and shows the command to run.
 
 To add a book, film or program to the lists, add a line to `bin/catalog.py` (its top comment explains the fields).
+
+### Your own movies, books and audiobooks (Settings page)
+Open **⚙️ Settings** in the header bar (`http://localhost:8000/settings`) on the computer that runs the kit, and add a
+folder for Movies or for Books (type the path or **Browse…**). The kit remembers them in `kit-settings.json` and looks
+through them every time it starts; they show up on the Movies and Books pages for every device on the Wi-Fi.
+Phones can see the list but can't change it. Press **Look again** after adding files.
 
 ## What you need (manual)
 

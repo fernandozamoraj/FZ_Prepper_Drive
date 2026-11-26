@@ -1,4 +1,4 @@
-"""catalog.py (offline prepper kit v1.14.1): the optional modules: books, audiobooks, movies and software.
+"""catalog.py (offline prepper kit v1.15.0): the optional modules: books, audiobooks, movies and software.
 
 None of this is part of `install all`. Pick what you want:
     kit books                       menu: choose categories or type keywords
@@ -466,3 +466,53 @@ def pick(items, words, fields):
 
 BOOK_FIELDS = ("id", "title", "author", "kw", "cat")
 SOFTWARE_FIELDS = ("id", "name", "kw", "about")
+
+
+# ---- Your own folders (Settings page on the hub) --------------------------------------------------------
+# kit-settings.json in the kit folder: {"folders": {"movies": [path, ...], "books": [path, ...]}}. Read when the hub
+# starts and saved by its Settings page. It belongs to one computer, so make-drive doesn't copy it to the stick.
+SETTINGS_FILE = os.path.join(KIT, "kit-settings.json")
+FOLDER_KINDS = {"movies": "Movies", "books": "Books and audiobooks"}
+BOOK_EXT = (".epub", ".pdf", ".mobi", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr", ".txt", ".rtf", ".docx", ".html", ".htm")
+AUDIO_EXT = (".mp3", ".m4b", ".m4a", ".aac", ".ogg", ".opus", ".flac", ".wav")
+
+
+def load_settings():
+    import json
+    try:
+        with open(SETTINGS_FILE, encoding="utf-8") as f:
+            s = json.load(f)
+    except (OSError, ValueError):
+        s = {}
+    folders = s.get("folders") if isinstance(s.get("folders"), dict) else {}
+    s["folders"] = {k: [p for p in folders.get(k, []) if isinstance(p, str) and p.strip()] for k in FOLDER_KINDS}
+    return s
+
+
+def save_settings(s):
+    import json
+    tmp = SETTINGS_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(s, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, SETTINGS_FILE)
+
+
+def _volume(p):
+    """The drive a path is on: 'E:' on Windows, '/Volumes/NAME' for a Mac external drive, '' for the Mac's own disk."""
+    d = os.path.splitdrive(p)[0]
+    if d:
+        return d.lower()
+    parts = p.split(os.sep)
+    return os.sep.join(parts[:3]) if len(parts) > 2 and parts[1] == "Volumes" else ""
+
+
+def store_folder(path):
+    """How a folder is written to kit-settings.json. A folder on the same thumb drive as the kit is saved relative to
+    the kit (..\\Movies), so it is still found when Windows gives the drive another letter."""
+    path = os.path.abspath(os.path.expanduser(path))
+    v = _volume(path)
+    return os.path.relpath(path, KIT) if v and v == _volume(KIT) else path
+
+
+def resolve_folder(stored):
+    return os.path.normpath(os.path.join(KIT, os.path.expanduser(stored)))

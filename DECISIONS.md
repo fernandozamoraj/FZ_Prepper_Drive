@@ -166,3 +166,16 @@
   compares its own version with the hub's (`/ports.json` "version") and asks for a restart. `NAV_VERSION` in
   `home/nav.js` and `VERSION` in `bin/intranet.py` must be bumped together.
 
+## 2026-11-26: Your own media folders via a Settings page, changed from this computer only
+- **Chosen:** `kit-settings.json` (per computer, not in git, not copied by make-drive) listing extra movie/book
+  folders, edited on a hub page. Scanned at startup and on Save/Rescan, cached in memory, so the Books/Movies pages stay
+  fast even when a folder is on a slow USB stick. Files are served at `/files/extra/<kind>/<n>/...`.
+- **Why localhost-only changes:** the hub is open to the whole Wi-Fi. If any phone could add a folder (or browse
+  disks), anyone on the network could expose `C:\Users` or the whole disk. Reading the list is harmless. POSTs also
+  need JSON and a same-origin `Origin`, so a web page can't change it behind your back.
+- **Why serve only listed media types:** a movie folder pointed at Downloads shares its videos, not the documents next
+  to them. A book folder does serve PDFs and TXT files (they are books), so give it a dedicated folder.
+- **Rejected:** a browser `<input type=file webkitdirectory>` picker (browsers never reveal the real path, and it
+  would upload the files); copying files into the kit (doubles the space on a 256 GB stick).
+- Folders on the kit's own drive are stored relative to the kit (Windows changes drive letters between PCs).
+

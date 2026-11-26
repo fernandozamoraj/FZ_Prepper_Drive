@@ -1,5 +1,22 @@
 # Changelog: offline prepper kit
 
+## 1.15.0 (2026-11-26)
+- **Settings page** (`/settings`, ⚙️ in the header bar): add your own folders of movies, books and audiobooks (on this
+  computer, a USB drive or the kit's thumb drive). Type a path or use **Browse…** to click through the computer's
+  folders. They are saved in `kit-settings.json` in the kit folder, looked through every time the kit starts (and on
+  Save / **Look again**), and show up on the Movies and Books pages as a 📁 section per folder. Nothing is copied.
+- Movies: every video file (.mp4 .m4v .webm .mkv .avi .mov .ogv) in the folder and its subfolders. Books: EPUB, PDF,
+  MOBI, AZW3, FB2, DjVu, CBZ/CBR, TXT, RTF, DOCX, HTML (an EPUB and a PDF with the same name are one book);
+  audiobooks: a folder of MP3/M4B/M4A/OGG/OPUS/FLAC/WAV files is one audiobook in natural order (part 2 before part 10),
+  a single audio file at the top is one too.
+- Only the computer that runs the kit can add or remove folders or browse its disks; phones see the list read-only.
+  Only listed media files inside those folders are served (no other files, no hidden files, no shortcuts that lead
+  outside the folder). A folder on the kit's own drive is saved relative to the kit, so it survives a new Windows
+  drive letter. `make-drive` does not copy `kit-settings.json` (it belongs to one computer).
+- Tested on the Mac with the test hub (ports 9000/9080/9090): save, bad path, duplicates, remove, folder picker,
+  Movies/Books listing, video byte ranges, audiobook player order, restart reads the file back, path-traversal,
+  hidden-file, symlink and other-origin requests refused, phone (other IP) gets 403 on changes. Not tried on Windows.
+
 ## 1.14.1 (2026-11-26)
 - Updating without restarting no longer just shows "404 Not Found": the hub reports its version in `/ports.json`, and the
   header bar (`nav.js`, read fresh from disk) shows **"Restart the kit to finish updating"** when the running hub is

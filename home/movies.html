@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Movies</title>
-<!-- Offline prepper kit v1.14.1: the optional Movies module (bin/catalog.py, `kit movies`), served by bin/intranet.py at /movies.
+<!-- Offline prepper kit v1.15.0: the optional Movies module (bin/catalog.py, `kit movies`), served by bin/intranet.py at /movies.
      Videos stream from /files/movies/... with byte ranges (seeking works, and iPhones play them). -->
 <link rel="stylesheet" href="/media.css">
 <style>
@@ -41,7 +41,7 @@
       <b>VLC</b> or <b>mpv</b> from the <a href="/software">Software</a> page.</li>
   </ul>
   <footer>Films from the Internet Archive's Feature Films collection (public domain) and Blender Studio / Nina Paley
-    (Creative Commons). Each film's license is shown with it. Offline prepper kit v1.14.1</footer>
+    (Creative Commons). Each film's license is shown with it. Offline prepper kit v1.15.0</footer>
 </div>
 <div id="player" hidden>
   <div class="bar"><b id="ptitle"></b><a class="btn" id="pdl" href="#">⬇ Download</a><button class="btn" type="button" id="pclose">✕ Close</button></div>
@@ -67,11 +67,13 @@ function render() {
     'It is optional (not part of <i>install all</i>). On the computer that runs the kit, open a terminal in the kit folder and run:',
     `${cmd(`${kit} movies`)} a menu to pick categories or type keywords, or for example`,
     `${cmd(`${kit} movies get comedy open-movies`)} ${cmd(`${kit} movies get "sherlock holmes"`)} ${cmd(`${kit} install movies`)} (all 40 films, about 17 GB)`,
-    'Then reload this page. You can also <a href="/movies/add">add your own films</a>.']);
+    'Then reload this page. You can also <a href="/movies/add">add your own films</a> or point the kit at a folder of videos on the <a href="/settings">Settings</a> page.']);
   const only = document.getElementById('only');
   if (!render.done) { only.checked = n > 0; render.done = true; }
   document.getElementById('out').innerHTML = DATA.categories.map(c => {
     const got = c.movies.filter(m => m.url).length;
+    if (c.folder) return `<section data-cat><h2>📁 ${esc(c.name)} <small>${c.found ? `${c.movies.length} from your folder` : '⚠ folder not found'} · <a href="/settings">Settings</a></small></h2>
+      <p class="muted"><small>${esc(c.folder)}</small></p><div class="cards">${c.movies.map(m => card(m, kit)).join('')}</div></section>`;
     return `<section data-cat><h2>${esc(c.name)} <small>${got} of ${c.movies.length} downloaded${c.id === 'my-movies' ? '' : ' · ' + cmd(`${kit} movies get ${c.id}`)}</small></h2>
       <div class="cards">${c.movies.map(m => card(m, kit)).join('')}</div></section>`;
   }).join('');

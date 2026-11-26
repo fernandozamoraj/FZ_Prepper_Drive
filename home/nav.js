@@ -1,4 +1,4 @@
-/* nav.js (offline prepper kit v1.14.1): the header bar on every page of the kit:
+/* nav.js (offline prepper kit v1.15.0): the header bar on every page of the kit:
    ⌂ Home (hub, port 8000) · Library (8080) · Bible (8000/bible) · Maps (8090) · Books · Movies · Software (8000/...).
    The library and map ports can move when another program has them: the hub's /ports.json says where they are,
    and window.fzKit (.lib, .maps, .hub, .ready) gives other page scripts the current addresses.
@@ -12,7 +12,7 @@
   window.__fznav = true;
 
   const h = location.hostname, p = location.protocol, port = location.port || (p === 'https:' ? '443' : '80');
-  const NAV_VERSION = '1.14.1';  // = intranet.py VERSION; a running hub that reports another one is older: restart it
+  const NAV_VERSION = '1.15.0';  // = intranet.py VERSION; a running hub that reports another one is older: restart it
   const K = window.fzKit = {ports: {hub: 8000, library: 8080, maps: 8090}};
   const at = n => `${p}//${h}:${K.ports[n]}/`;
   Object.defineProperties(K, {hub: {get: () => at('hub')}, lib: {get: () => at('library')}, maps: {get: () => at('maps')}});
@@ -25,7 +25,7 @@
   function current() {
     if (port === String(K.ports.maps)) return 'maps';
     if (port === String(K.ports.library)) return /^#bible_/.test(location.hash) ? 'bible' : 'library';
-    if (port === String(K.ports.hub)) return (location.pathname.match(/^\/(bible|books|movies|software)/) || [0, 'home'])[1];
+    if (port === String(K.ports.hub)) return (location.pathname.match(/^\/(bible|books|movies|software|settings)/) || [0, 'home'])[1];
     return '';
   }
 
@@ -66,7 +66,8 @@
       item('maps', K.maps, '🗺️', 'Maps') +
       item('books', K.hub + 'books', '📕', 'Books') +
       item('movies', K.hub + 'movies', '🎬', 'Movies') +
-      item('software', K.hub + 'software', '💾', 'Software');
+      item('software', K.hub + 'software', '💾', 'Software') +
+      item('settings', K.hub + 'settings', '⚙️', '<span class="fz-lbl-long">Settings</span>');
     // Links open in this tab, never inside the library's content frame
     nav.querySelectorAll('a').forEach(a => a.target = '_top');
     document.body.insertBefore(nav, document.body.firstChild);
@@ -77,12 +78,12 @@
       nav.querySelectorAll('a[data-sec]').forEach(a =>
         a.dataset.sec === c ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
     });
-    const SECS = ['home', 'library', 'bible', 'maps', 'books', 'movies', 'software'];
+    const SECS = ['home', 'library', 'bible', 'maps', 'books', 'movies', 'software', 'settings'];
     nav.querySelectorAll('a').forEach((a, i) => a.dataset.sec = SECS[i]);
     // Once the hub says where everything runs, point the links there
     K.ready.then(() => {
       const href = {home: K.hub, library: K.lib, bible: K.hub + 'bible', maps: K.maps, books: K.hub + 'books',
-        movies: K.hub + 'movies', software: K.hub + 'software'}, c = current();
+        movies: K.hub + 'movies', software: K.hub + 'software', settings: K.hub + 'settings'}, c = current();
       nav.querySelectorAll('a[data-sec]').forEach(a => {
         a.href = href[a.dataset.sec];
         a.dataset.sec === c ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');

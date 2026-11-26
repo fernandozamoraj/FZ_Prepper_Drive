@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kit Settings</title>
+<!-- Offline prepper kit v1.15.0: your own movie and book folders (kit-settings.json), served by bin/intranet.py at /settings -->
+<link rel="stylesheet" href="/media.css">
+<style>
+.addrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.addrow input{flex:1 1 260px;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit}
+.path{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;word-break:break-all}
+.ok{color:var(--accent);font-weight:600}
+.bad{color:#b4462b;font-weight:600}
+@media (prefers-color-scheme:dark){ .bad{color:#f08a6c} }
+.err{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;padding:8px 12px;margin-top:10px}
+.picker{margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:10px}
+.picker .cur{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.picker .roots{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.picker ul{list-style:none;margin:0;padding:0;max-height:300px;overflow:auto;border-top:1px solid var(--line)}
+.picker li button{all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;padding:6px 8px;border-bottom:1px solid var(--line)}
+.picker li button:hover,.picker li button:focus-visible{background:var(--chip)}
+.chip{all:unset;cursor:pointer;background:var(--chip);border-radius:999px;padding:4px 10px;font-size:13px}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<script src="/media.js"></script>
+<div class="wrap">
+  <h1>Settings</h1>
+  <p class="sub">Add folders of your own movies, books and audiobooks: a folder on this computer, a USB drive or the kit's
+    thumb drive. They show up on the <a href="/movies">Movies</a> and <a href="/books">Books</a> pages for every device
+    on the Wi-Fi. Nothing is copied: the files are played and read where they are.</p>
+  <div id="note"></div>
+  <div id="out"><p class="muted">Loading…</p></div>
+
+  <h2>Good to know</h2>
+  <ul class="tips">
+    <li>The folders are saved in <code id="file">kit-settings.json</code> in the kit folder and looked through every time
+      the kit starts. Added or removed files since then? Press <b>Look again</b>.</li>
+    <li><b>Movies</b>: every video file in the folder and the folders inside it (.mp4, .m4v, .webm, .mkv, .avi, .mov).
+      MP4 plays on every phone; other files may need <b>VLC</b> from the <a href="/software">Software</a> page.</li>
+    <li><b>Books</b>: EPUB, PDF, MOBI, AZW3, TXT and other book files. <b>Audiobooks</b>: a folder of MP3 / M4B / M4A
+      files is one audiobook, played in order; a single .m4b file is one too.</li>
+    <li>A folder on the kit's own thumb drive is remembered relative to the kit, so it is still found when Windows gives
+      the drive a different letter. A folder on a drive that isn't plugged in stays in the list as “not found”.</li>
+    <li>Only the computer that runs the kit can change these folders. Phones and other devices can see the list.</li>
+  </ul>
+  <footer>Offline prepper kit v1.15.0</footer>
+</div>
+<script>
+const {esc, json} = fzMedia;
+let S = null, picking = null, pickPath = '';
+const UNIT = {movies: ['video', 'videos'], books: ['book or audiobook', 'books and audiobooks']};
+
+function folderRow(kind, f, i) {
+  const n = f.count, u = UNIT[kind][n === 1 ? 0 : 1];
+  const status = !f.ok ? `<span class="bad">⚠ not found</span> <small class="muted">(drive unplugged or folder moved?)</small>`
+    : `<span class="ok">✓ ${n} ${u}</span>${kind === 'books' && f.audiobooks ? ` <small class="muted">(${f.audiobooks} audiobooks)</small>` : ''}` +
+      (f.truncated ? ` <small class="bad">stopped after ${S.max_files} files: pick a smaller folder</small>` : '');
+  return `<div class="item"><div class="row"><div class="t"><span class="path">${esc(f.path)}</span><br><small>${status}</small></div>
+    ${S.local ? `<div class="actions"><button class="btn" type="button" data-remove="${kind}" data-i="${i}">Remove</button></div>` : ''}</div></div>`;
+}
+
+function render(err) {
+  const local = S.local;
+  document.getElementById('file').textContent = S.file;
+  document.getElementById('note').innerHTML = local ? '' :
+    '<div class="banner"><h3>View only</h3><p>Folders can be added or removed only on the computer that runs the kit ' +
+    '(open <b>http://localhost:8000/settings</b> there).</p></div>';
+  document.getElementById('out').innerHTML = Object.entries(S.kinds).map(([kind, name]) => `
+    <section><h2>${esc(name)} <small>${S.folders[kind].length} folder${S.folders[kind].length === 1 ? '' : 's'}</small></h2>
+      <div class="list">${S.folders[kind].map((f, i) => folderRow(kind, f, i)).join('') ||
+        '<p class="muted">No folders yet.</p>'}</div>
+      ${local ? `<div class="addrow"><input type="text" data-path="${kind}" spellcheck="false" autocomplete="off"
+          placeholder="${S.windows ? 'e.g. D:\\Movies' : 'e.g. /Volumes/USB/Movies'}" aria-label="Folder to add for ${esc(name)}">
+        <button class="btn" type="button" data-browse="${kind}">📁 Browse…</button>
+        <button class="btn primary" type="button" data-add="${kind}">Add folder</button></div>
+        <div data-picker="${kind}"></div>` : ''}
+      ${err && err.kind === kind ? `<div class="err">${esc(err.msg)}</div>` : ''}
+    </section>`).join('') + `
+    <p style="margin-top:18px"><button class="btn" type="button" id="rescan">↻ Look again</button>
+      <small class="muted">${S.scanning ? 'looking through the folders…' : S.scanned ? 'last looked ' + new Date(S.scanned * 1000).toLocaleTimeString() : ''}</small></p>`;
+  if (picking) showPicker();
+  if (S.scanning) setTimeout(load, 1500);
+}
+
+function load() { return json('/settings.json').then(d => { S = d; render(); }); }
+
+async function save(kind, folders) {
+  const body = {folders: Object.fromEntries(Object.keys(S.kinds).map(k => [k, S.folders[k].map(f => f.stored)]))};
+  body.folders[kind] = folders;
+  const r = await fetch('/settings.json', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const d = await r.json().catch(() => ({error: 'The kit did not answer.'}));
+  if (!r.ok) { render({kind, msg: d.error || 'Could not save.'}); return false; }
+  S = d; picking = null; render(); return true;
+}
+
+async function showPicker() {
+  const box = document.querySelector(`[data-picker="${picking}"]`);
+  if (!box) return;
+  let d;
+  try { d = await json('/settings/browse.json?path=' + encodeURIComponent(pickPath)); }
+  catch (_) { box.innerHTML = '<div class="err">Could not list folders.</div>'; return; }
+  pickPath = d.path;
+  box.innerHTML = `<div class="picker">
+    <div class="roots">${d.roots.map(r => `<button class="chip" type="button" data-go="${esc(r)}">${esc(r)}</button>`).join('')}</div>
+    <div class="cur">${d.parent ? `<button class="btn" type="button" data-go="${esc(d.parent)}">⬆ Up</button>` : ''}
+      <span class="path" style="flex:1">${esc(d.path)}</span>
+      <button class="btn primary" type="button" data-use="${esc(d.path)}">Use this folder</button>
+      <button class="btn" type="button" data-cancel>Cancel</button></div>
+    ${d.error ? `<div class="err">${esc(d.error)}</div>` : ''}
+    <ul>${d.dirs.map(n => `<li><button type="button" data-go="${esc(d.path.replace(/[\\/]$/, '') + d.sep + n)}">📁 ${esc(n)}</button></li>`).join('') ||
+      '<li class="muted" style="padding:6px 8px">No folders inside.</li>'}</ul></div>`;
+}
+
+document.addEventListener('click', async e => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  if (t.dataset.remove) {
+    const kind = t.dataset.remove, list = S.folders[kind].map(f => f.stored);
+    list.splice(+t.dataset.i, 1);
+    save(kind, list);
+  } else if (t.dataset.add) {
+    const kind = t.dataset.add, v = document.querySelector(`[data-path="${kind}"]`).value.trim();
+    if (v) save(kind, [...S.folders[kind].map(f => f.stored), v]);
+  } else if (t.dataset.browse) {
+    picking = t.dataset.browse; pickPath = document.querySelector(`[data-path="${picking}"]`).value.trim(); showPicker();
+  } else if ('go' in t.dataset) {
+    pickPath = t.dataset.go; showPicker();
+  } else if ('use' in t.dataset) {
+    save(picking, [...S.folders[picking].map(f => f.stored), t.dataset.use]);
+  } else if ('cancel' in t.dataset) {
+    picking = null; render();
+  } else if (t.id === 'rescan') {
+    t.disabled = true; t.textContent = 'Looking…';
+    const r = await fetch('/settings/rescan', {method: 'POST'});
+    if (r.ok) { S = await r.json(); render(); } else { t.disabled = false; t.textContent = '↻ Look again'; }
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.path)
+    document.querySelector(`[data-add="${e.target.dataset.path}"]`).click();
+});
+
+load().catch(() => document.getElementById('out').innerHTML =
+  '<p class="muted">Could not load the settings. If you just updated the kit, close its window and start it again.</p>');
+</script>
+</body>
+</html>

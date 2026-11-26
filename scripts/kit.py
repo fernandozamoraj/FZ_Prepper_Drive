@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""kit.py (offline prepper kit v1.14.1): download and rebuild everything in the kit, on macOS or Windows.
+"""kit.py (offline prepper kit v1.15.0): download and rebuild everything in the kit, on macOS or Windows.
 
 Run it through the wrappers, which also fetch a portable Python the first time if needed:
     macOS:   ./kit.sh <command> [options]
@@ -51,7 +51,7 @@ import time
 import urllib.parse
 import zipfile
 
-VERSION = "1.14.1"
+VERSION = "1.15.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(KIT, "bin"))  # kitplatform (python -I leaves script dirs out of sys.path)
@@ -1453,7 +1453,7 @@ def cmd_movies(a):
 
 # ==== make-drive =======================================================================================
 DRIVE_SKIP_DIRS = {".git", ".venv", "build", "__pycache__", "drive-root", "logs"}
-DRIVE_SKIP = re.compile(r"(\.bak-[^/\\]*|\.DS_Store|^\._.*|^download.*\.log|\.log|\.part|\.tmp|\.new\.pmtiles)$")
+DRIVE_SKIP = re.compile(r"(^kit-settings\.json|\.bak-[^/\\]*|\.DS_Store|^\._.*|^download.*\.log|\.log|\.part|\.tmp|\.new\.pmtiles)$")
 
 
 def copy_changed(src, dst, skip_zims):

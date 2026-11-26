@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Books and Audiobooks</title>
-<!-- Offline prepper kit v1.14.1: the optional Books module (bin/catalog.py, `kit books`), served by bin/intranet.py at /books -->
+<!-- Offline prepper kit v1.15.0: the optional Books module (bin/catalog.py, `kit books`), served by bin/intranet.py at /books -->
 <link rel="stylesheet" href="/media.css">
 <style>
 .player{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
@@ -34,12 +34,13 @@
     <li><b>EPUB</b>: on an iPhone or iPad, tap it and choose <b>Books</b>. On Android, tap it and open it with a reader app
       (Google Play Books, ReadEra). On a Mac, the <b>Books</b> app opens it. On Windows, use <b>Thorium Reader</b>,
       <b>SumatraPDF</b> or <b>Calibre</b> from the <a href="/software">Software</a> page.</li>
+    <li><b>Your own books and audiobooks</b>: add their folders on the <a href="/settings">Settings</a> page.</li>
     <li><b>Audiobooks</b> play here and keep going to the next part; this device remembers where you stopped.
       Use <b>Download</b> on a part to keep it on a phone.</li>
   </ul>
   <footer>Books from OpenStax (CC BY-NC-SA), Project Gutenberg (public domain), Green Tea Press, opendatastructures.org,
     the OSTEP authors, Pro Git and SICP (CC licenses) and Kiwix; audiobooks from LibriVox (public domain).
-    Each book's license is listed with it and in <code>books/ABOUT THESE BOOKS.txt</code>. Offline prepper kit v1.14.1</footer>
+    Each book's license is listed with it and in <code>books/ABOUT THESE BOOKS.txt</code>. Offline prepper kit v1.15.0</footer>
 </div>
 <script>
 const {esc, cmd, store, json, banner} = fzMedia;
@@ -52,17 +53,18 @@ function bookRow(b, kit) {
   if (h.epub) acts.push(`<a class="btn primary" href="${esc(h.epub.url)}">EPUB <small>${h.epub.mb} MB</small></a>`);
   if (h.pdf && !Array.isArray(h.pdf)) acts.push(`<a class="btn${h.epub ? '' : ' primary'}" href="${esc(h.pdf.url)}" target="_blank">PDF <small>${h.pdf.mb} MB</small></a>`);
   if (h.library) acts.push(`<a class="btn primary" href="${esc(LIB)}viewer#${esc(h.library)}" target="_top">📚 Open in Library</a>`);
+  (h.other || []).forEach(o => acts.push(`<a class="btn${acts.length ? '' : ' primary'}" href="${esc(o.url)}?download">${esc(o.ext.toUpperCase())} <small>${o.mb} MB</small></a>`));
   if (h.audio) acts.push(`<button class="btn" type="button" data-listen="${esc(b.id)}">🎧 Listen</button>`);
   let more = '';
   if (Array.isArray(h.pdf)) more += `<details><summary class="muted">${h.pdf.length} chapter PDFs</summary><ol class="chapters">` +
     h.pdf.map(c => `<li><a href="${esc(c.url)}" target="_blank">${esc(c.name)}</a></li>`).join('') + '</ol></details>';
   const need = [];
-  if (!got) need.push(`not downloaded: ${cmd(`${kit} books get ${b.id}`)}`);
-  if (b.audiobook && !h.audio) need.push(`audiobook: ${cmd(`${kit} books get ${b.id} --audio-only`)}`);
+  if (!got && !b.extra) need.push(`not downloaded: ${cmd(`${kit} books get ${b.id}`)}`);
+  if (b.audiobook && !h.audio && !b.extra) need.push(`audiobook: ${cmd(`${kit} books get ${b.id} --audio-only`)}`);
   return `<div class="item${got || h.audio ? '' : ' missing'}" data-id="${esc(b.id)}" data-text="${esc((b.title + ' ' + b.author + ' ' + b.id).toLowerCase())}" data-have="${got || h.audio ? 1 : 0}">
-    <div class="row"><div class="t">${esc(b.title)} <small>· ${esc(b.author)}</small></div><div class="actions">${acts.join('')}</div></div>
+    <div class="row"><div class="t">${esc(b.title)}${b.author ? ` <small>· ${esc(b.author)}</small>` : ''}</div><div class="actions">${acts.join('')}</div></div>
     ${more}${need.length ? `<div class="get">${need.join('<br>')}</div>` : ''}
-    <div class="get"><small>${esc(b.license)}</small></div><div class="player" hidden></div></div>`;
+    ${b.license ? `<div class="get"><small>${b.extra ? '📁 ' : ''}${esc(b.license)}</small></div>` : ''}<div class="player" hidden></div></div>`;
 }
 
 function render() {
@@ -78,6 +80,8 @@ function render() {
   if (!render.done) { only.checked = n > 0; render.done = true; }
   document.getElementById('out').innerHTML = DATA.categories.map(c => {
     const got = c.books.filter(b => Object.keys(b.have).length).length;
+    if (c.folder) return `<section data-cat><h2>📁 ${esc(c.name)} <small>${c.found ? `${c.books.length} from your folder` : '⚠ folder not found'} · <a href="/settings">Settings</a></small></h2>
+      <p class="muted"><small>${esc(c.folder)}</small></p><div class="list">${c.books.map(b => bookRow(b, kit)).join('')}</div></section>`;
     return `<section data-cat><h2>${esc(c.name)} <small>${got} of ${c.books.length} downloaded · ${cmd(`${kit} books get ${c.id}`)}</small></h2>
       <div class="list">${c.books.map(b => bookRow(b, kit)).join('')}</div></section>`;
   }).join('');

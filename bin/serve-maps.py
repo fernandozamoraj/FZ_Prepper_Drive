@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""serve-maps: serve the offline map viewer + .pmtiles over the local network (v1.13.2).
+"""serve-maps: serve the offline map viewer + .pmtiles over the local network (v1.13.3).
 
 Usage: serve-maps.py [port]   (default 8090)
 Serves ../map-viewer/ at /, and ../maps/*.pmtiles at /tiles/. Supports HTTP Range requests,
 which the PMTiles format needs (Python's built-in http.server does not).
-Also forwards /route and /info to the offline directions server (GraphHopper on 127.0.0.1:8989),
+Also forwards /route and /info to the offline directions server (GraphHopper on 127.0.0.1:8989, or the next
+free port up to 8999 if another program has 8989),
 so phones only need this one port. If routing/graph-us exists, the router is started automatically
 (routing/start-router.sh) and stopped on Ctrl+C. `serve-maps.py 8090 --no-router` skips it.
 """
@@ -25,6 +26,7 @@ import kitplatform  # noqa: E402
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VIEWER = os.path.join(KIT, "map-viewer")
 TILES = os.path.join(KIT, "maps")
+ROUTER_PORTS = range(8989, 9000)  # GraphHopper's own port (config.yml) and fallbacks
 ROUTER = "http://127.0.0.1:8989"
 ROUTING = os.path.join(KIT, "routing")
 router_proc = None
@@ -132,11 +134,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         pass  # quiet
 
 
-def router_up():
+def port_open(port):
     try:
-        with socket.create_connection(("127.0.0.1", 8989), timeout=0.5):
+        with socket.create_connection(("127.0.0.1", port), timeout=0.5):
             return True
     except OSError:
+        return False
+
+
+def graphhopper_on(port):
+    """True if GraphHopper (not some other program) answers on this port."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/info", timeout=3) as r:
+            return b'"bbox"' in r.read(20000)
+    except (OSError, ValueError):
         return False
 
 
@@ -145,19 +156,27 @@ def start_router():
     global router_proc
     if not os.path.isfile(os.path.join(ROUTING, "graph-us", "properties")):
         return "off (no routing graph yet: run routing/build-routing.sh)"
-    if router_up():
+    global ROUTER
+    if graphhopper_on(8989):
         return "already running"
     java = kitplatform.find_java()
     if not java:
         return "off (Java not found)"
+    free = [p for p in ROUTER_PORTS if not port_open(p)]
+    if len(free) < 2:
+        return "off (ports 8989-8999 are all in use by other programs)"
+    app, admin = free[0], free[1]  # GraphHopper also opens an admin port (config.yml: 8990)
+    ROUTER = f"http://127.0.0.1:{app}"
+    moved = "" if app == 8989 else f" on port {app} (another program has 8989)"
     # Same as routing/start-router.sh, without needing bash (Windows). MMAP: the 8.5 GB graph is read
     # from disk on demand, so the router needs little RAM.
     cmd = [java, "-Xmx3g", "-Ddw.graphhopper.graph.dataaccess.default_type=MMAP",
+           f"-Ddw.server.application_connectors[0].port={app}", f"-Ddw.server.admin_connectors[0].port={admin}",
            "-jar", "graphhopper-web-11.1.jar", "server", "config.yml"]
     os.makedirs(os.path.join(ROUTING, "logs"), exist_ok=True)
     router_proc = kitplatform.start_quietly(cmd, cwd=ROUTING, log=os.path.join(ROUTING, "router.log"))
     atexit.register(stop_router)
-    return "starting (ready in a few seconds)"
+    return f"starting{moved} (ready in a few seconds)"
 
 
 def stop_router():

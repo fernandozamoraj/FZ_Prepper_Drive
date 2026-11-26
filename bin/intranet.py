@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.13.2).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.13.3).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -9,7 +9,8 @@ Serves home/hub.html at /, the PDF guides at /guides/, a guide list at /guides.j
 service status at /status.json. /bible is the Bible search page (home/bible.html + /kjv.json,
 built by bible/build-bible.sh); /bible-info.json names the library's Bible file for "open in library" links.
 Starts the library (kiwix-serve, port 8080) and the maps (serve-maps.py, port 8090, which starts
-the directions router) unless something is already listening on those ports.
+the directions router) unless they are already running. If another program uses one of those ports, the
+service moves to the next free one (8081..., 8091...); /ports.json tells the pages (nav.js) where everything is.
 """
 import http.server
 import json
@@ -29,11 +30,11 @@ import kitplatform  # noqa: E402
 KIT = kitplatform.KIT
 GUIDES = os.path.join(KIT, "guides")
 PORTS = {"library": 8080, "maps": 8090}
-# Testing only: PREPPER_KIT_TEST_PORTS="9000,9080,9090" runs hub, library and maps on other ports
-# (the header links still point at 8000/8080/8090).
+# Testing only: PREPPER_KIT_TEST_PORTS="9000,9080,9090" runs hub, library and maps on other ports.
 _TEST = os.environ.get("PREPPER_KIT_TEST_PORTS", "").split(",")
 if len(_TEST) == 3:
     PORTS = {"library": int(_TEST[1]), "maps": int(_TEST[2])}
+DEFAULT_PORTS = dict(PORTS)
 children = []
 
 
@@ -57,7 +58,7 @@ def is_ours(name, port):
 
 def library_has_home_page():
     try:
-        with urllib.request.urlopen("http://127.0.0.1:8080/", timeout=3) as r:
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORTS['library']}/", timeout=3) as r:
             return b"Offline Library" in r.read(4000)
     except OSError:
         return True  # can't tell; don't warn
@@ -81,6 +82,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urllib.parse.unquote(self.path.split("?", 1)[0])
+        if path == "/ports.json":  # read by nav.js on every page (library and map are other origins)
+            return self.send_json({"hub": self.server.server_address[1], **PORTS}, cors=True)
         if path == "/status.json":
             return self.send_json({n: port_up(p) and is_ours(n, p) for n, p in PORTS.items()})
         if path == "/guides.json":
@@ -103,10 +106,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_error(404)
         return super().do_GET()
 
-    def send_json(self, obj):
+    def send_json(self, obj, cors=False):
         body = json.dumps(obj).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
+        if cors:
+            self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -125,13 +130,29 @@ def lan_ip():
             return None
 
 
+def pick_port(name, preferred):
+    """(port, already_running): the kit's server if it is already up on preferred..preferred+9,
+    else the first free port there. Other programs (e.g. Wondershare's helper on 8090) are stepped over."""
+    free = None
+    for port in range(preferred, preferred + 10):
+        if port_up(port):
+            if is_ours(name, port):
+                return port, True
+        elif free is None:
+            free = port
+    return free, False
+
+
 def start_services():
-    for name, svc_port in PORTS.items():
-        if port_up(svc_port):
-            if not is_ours(name, svc_port):
-                print(f"  {name}: NOT started: port {svc_port} is used by another program. "
-                      "Close that program, then start the kit again.")
-                continue
+    for name, preferred in list(PORTS.items()):
+        svc_port, running = pick_port(name, preferred)
+        if svc_port is None:
+            print(f"  {name}: NOT started: ports {preferred}-{preferred + 9} are all used by other programs.")
+            continue
+        if svc_port != preferred:
+            print(f"  {name}: port {preferred} is used by another program, using port {svc_port} instead")
+        PORTS[name] = svc_port
+        if running:
             print(f"  {name}: already running")
             if name == "library" and not library_has_home_page():
                 print("  WARNING: that library server is an old one without the search home page.\n"
@@ -176,6 +197,8 @@ def main():
         if hasattr(signal, name):
             signal.signal(getattr(signal, name), lambda *_: sys.exit(0))
     ip = lan_ip()
+    if PORTS != DEFAULT_PORTS:
+        print(f"  (library on port {PORTS['library']}, maps on port {PORTS['maps']}; the Home page links follow)")
     print(f"\nReady. Home page:\n  On this computer:        http://localhost:{port}")
     if ip:
         print(f"  On phones/other devices: http://{ip}:{port}   (same Wi-Fi network)")

@@ -93,7 +93,7 @@ footer{margin-top:36px;color:var(--muted);font-size:13px}
   <div id="status">Loading the Bible…</div>
   <div id="bookcounts"></div>
   <div id="out"></div>
-  <footer>Offline prepper kit v1.11.0 · KJV text (1769) from eBible.org, public domain · Words in <i>italics</i> were supplied by the translators.
+  <footer>Offline prepper kit v1.13.3 · KJV text (1769) from eBible.org, public domain · Words in <i>italics</i> were supplied by the translators.
     Tips: put words in "quotes" for an exact phrase, end a word with * to match its start (bless* → blessed, blessing).</footer>
 </div>
 <div id="toast"></div>
@@ -206,7 +206,8 @@ const refOf = (b, c, v) => `${BOOKS[b].name} ${c}${v ? ':' + v : ''}`;
 const verseHTML = t => esc(t.replace(/¶\s*/g, '')).replace(/\[([^\]]+)\]/g, '<i>$1</i>');
 function libLink(b, c, v){
   if (!ZIM) return '';
-  const u = `${location.protocol}//${location.hostname}:8080/viewer#${ZIM}/${BOOKS[b].name.replace(/ /g, '_')}_${c}${v ? '#v' + v : ''}`;
+  const lib = window.fzKit ? fzKit.lib : `${location.protocol}//${location.hostname}:8080/`;
+  const u = `${lib}viewer#${ZIM}/${BOOKS[b].name.replace(/ /g, '_')}_${c}${v ? '#v' + v : ''}`;
   return `<a href="${esc(u)}" target="_blank">library</a>`;
 }
 function chapterBlock(b, c, v1 = 0, v2 = 0, onlyRange = false){

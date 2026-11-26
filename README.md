@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.13.2)
+# FZ Prepper Drive (offline prepper kit v1.13.3)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
@@ -52,7 +52,8 @@ Turn off sleep while it runs (Windows: Settings → System → Power).
 Your browser opens the **Home page** (http://localhost:8000) with search, the library (port 8080), the Bible and
 the map (port 8090); parts you didn't install show as not running. Keep the window open while you use it;
 **Ctrl+C** or closing the window stops everything. Phones and tablets on the same Wi-Fi use the address it prints
-(e.g. `http://192.168.1.20:8000`).
+(e.g. `http://192.168.1.20:8000`). If another program already uses port 8080 or 8090, the library or map moves to the next
+free port (the window says which) and the Home page links follow; start from the Home page and you never need to know.
 
 ### 4. Optional: put it on a USB drive
 

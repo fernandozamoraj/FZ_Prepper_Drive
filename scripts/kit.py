@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""kit.py (offline prepper kit v1.13.2): download and rebuild everything in the kit, on macOS or Windows.
+"""kit.py (offline prepper kit v1.13.3): download and rebuild everything in the kit, on macOS or Windows.
 
 Run it through the wrappers, which also fetch a portable Python the first time if needed:
     macOS:   ./kit.sh <command> [options]
@@ -42,7 +42,7 @@ import tempfile
 import time
 import zipfile
 
-VERSION = "1.13.2"
+VERSION = "1.13.3"
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(KIT, "bin"))  # kitplatform (python -I leaves script dirs out of sys.path)
@@ -282,6 +282,21 @@ def current_platform():
     if sys.platform == "darwin":
         return "mac-arm64" if platform.machine() == "arm64" else "mac-x64"
     return None
+
+
+def router_running():
+    """GraphHopper answering on 8989 or a fallback port (serve-maps.py moves it if another program has 8989)."""
+    import urllib.request
+    for port in range(8989, 9000):
+        if not port_open(port):
+            continue
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/info", timeout=3) as r:
+                if b'"bbox"' in r.read(20000):
+                    return True
+        except (OSError, ValueError):
+            pass
+    return False
 
 
 def port_open(port):
@@ -561,8 +576,8 @@ def cmd_build_routing(a):
     graph = os.path.abspath(a.graph) if a.graph else os.path.join(routing, "graph-us")
     jar = os.path.join(routing, "graphhopper-web-11.1.jar")
     os.path.exists(jar) or die("routing/graphhopper-web-11.1.jar missing: run setup")
-    if not a.graph and port_open(8989):
-        die("the directions router is running (port 8989). Stop the kit first (Ctrl+C or close its window), "
+    if not a.graph and router_running():
+        die("the directions router is running. Stop the kit first (Ctrl+C or close its window), "
             "then run this again")
     shutil.rmtree(graph, ignore_errors=True)
     os.makedirs(os.path.join(routing, "logs"), exist_ok=True)

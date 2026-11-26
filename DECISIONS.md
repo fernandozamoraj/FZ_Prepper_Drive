@@ -100,3 +100,13 @@
   should not cost you the map). A failed build step still stops, naming the step and the command to resume.
   Status checks ask the kit's own server (`/catalog/v2/root.xml`, `/style/style.json`).
 - **Consequence:** `download` on its own still exits 2 when something failed, so scripts can tell.
+
+## 2026-11-26: Step over ports other programs hold
+- **Context:** On a Windows PC, a Wondershare helper listened on 8090, so the hub thought the map was running and never
+  started it. Fixed ports are written into the hub, header bar, library home page, Bible page and map page.
+- **Decision:** The hub picks the kit's server if it already runs on 8080-8089 / 8090-8099, else the first free port, and
+  serves `/ports.json` (CORS open) that `nav.js` reads; other page scripts use `window.fzKit`. serve-maps.py does the
+  same for GraphHopper (8989-8999, app and admin ports). The hub stays on 8000 so phones keep one address to remember.
+- **Rejected:** a settings file with ports: relatives running from the drive would never edit it.
+- **Consequence:** If the library or map moves, links to it saved on phones break until the other program is gone;
+  links through the Home page always work.

@@ -93,13 +93,15 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
     <b>Directions</b> are ready a few seconds after starting.<br>
     <b>Bible:</b> type a verse phrase in the search box above, or pick the Bible group in the library to search only the Bible.</p>
 
-  <footer>Offline prepper kit v1.13.2 · started with <code>runhomeintra</code></footer>
+  <footer>Offline prepper kit v1.13.3 · started with <code>runhomeintra</code></footer>
 </div>
 <script>
 const host = location.hostname, proto = location.protocol;
-const LIB = `${proto}//${host}:8080/`, MAPS = `${proto}//${host}:8090/`;
-document.getElementById('lib').href = LIB;
-document.getElementById('maps').href = MAPS;
+let LIB = `${proto}//${host}:8080/`, MAPS = `${proto}//${host}:8090/`;
+const setLinks = () => { document.getElementById('lib').href = LIB; document.getElementById('maps').href = MAPS; };
+setLinks();
+// The library or map may run on another port if a different program had theirs (nav.js reads /ports.json)
+if (window.fzKit) fzKit.ready.then(k => { LIB = k.lib; MAPS = k.maps; setLinks(); });
 document.getElementById('addr').textContent = location.host;
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 

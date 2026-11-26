@@ -1,5 +1,7 @@
-/* nav.js (offline prepper kit v1.11.0): the header bar on every page of the kit:
+/* nav.js (offline prepper kit v1.13.3): the header bar on every page of the kit:
    ⌂ Home (hub, port 8000) · Library (8080) · Bible (8000/bible) · Maps (8090).
+   The library and map ports can move when another program has them: the hub's /ports.json says where they are,
+   and window.fzKit (.lib, .maps, .hub, .ready) gives other page scripts the current addresses.
    Served as /nav.js by intranet.py, serve-maps.py and kiwix-serve (KIWIX_SERVE_CUSTOMIZED_RESOURCES,
    set up by serve.sh; the library viewer loads it from home/viewer_settings.js).
    Links use the page's own host name, so they work on phones over the Wi-Fi too.
@@ -10,12 +12,17 @@
   window.__fznav = true;
 
   const h = location.hostname, p = location.protocol, port = location.port || (p === 'https:' ? '443' : '80');
-  const HUB = `${p}//${h}:8000/`, LIB = `${p}//${h}:8080/`, MAPS = `${p}//${h}:8090/`, BIBLE = HUB + 'bible';
+  const K = window.fzKit = {ports: {hub: 8000, library: 8080, maps: 8090}};
+  const at = n => `${p}//${h}:${K.ports[n]}/`;
+  Object.defineProperties(K, {hub: {get: () => at('hub')}, lib: {get: () => at('library')}, maps: {get: () => at('maps')}});
+  const getPorts = u => fetch(u, {cache: 'no-store'}).then(r => { if (!r.ok) throw 0; return r.json(); });
+  K.ready = getPorts(`${p}//${h}:8000/ports.json`).catch(() => getPorts('/ports.json'))  // 2nd: a hub on another port
+    .then(j => { Object.assign(K.ports, j); return K; }).catch(() => K);
 
   function current() {
-    if (port === '8090') return 'maps';
-    if (port === '8080') return /^#bible_/.test(location.hash) ? 'bible' : 'library';
-    if (port === '8000') return location.pathname.startsWith('/bible') ? 'bible' : 'home';
+    if (port === String(K.ports.maps)) return 'maps';
+    if (port === String(K.ports.library)) return /^#bible_/.test(location.hash) ? 'bible' : 'library';
+    if (port === String(K.ports.hub)) return location.pathname.startsWith('/bible') ? 'bible' : 'home';
     return '';
   }
 
@@ -50,10 +57,10 @@
     const item = (id, href, ico, label, cls = '') =>
       `<a href="${href}" class="${cls}"${cur === id ? ' aria-current="page"' : ''}><span class="fz-ico">${ico}</span>${label}</a>`;
     nav.innerHTML =
-      item('home', HUB, '⌂', 'Home', 'fz-home') +
-      item('library', LIB, '📚', 'Library') +
-      item('bible', BIBLE, '📖', 'Bible') +
-      item('maps', MAPS, '🗺️', 'Maps');
+      item('home', K.hub, '⌂', 'Home', 'fz-home') +
+      item('library', K.lib, '📚', 'Library') +
+      item('bible', K.hub + 'bible', '📖', 'Bible') +
+      item('maps', K.maps, '🗺️', 'Maps');
     // Links open in this tab, never inside the library's content frame
     nav.querySelectorAll('a').forEach(a => a.target = '_top');
     document.body.insertBefore(nav, document.body.firstChild);
@@ -65,6 +72,14 @@
         a.dataset.sec === c ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
     });
     nav.querySelectorAll('a').forEach((a, i) => a.dataset.sec = ['home', 'library', 'bible', 'maps'][i]);
+    // Once the hub says where everything runs, point the links there
+    K.ready.then(() => {
+      const href = {home: K.hub, library: K.lib, bible: K.hub + 'bible', maps: K.maps}, c = current();
+      nav.querySelectorAll('a[data-sec]').forEach(a => {
+        a.href = href[a.dataset.sec];
+        a.dataset.sec === c ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
+      });
+    });
 
     // Library articles with a location (Wikipedia, Wikivoyage...) link to the offline map
     const frame = document.getElementById('content_iframe');
@@ -83,7 +98,7 @@
   // Offline those do nothing, so point the US ones at the offline map with a pin, and add a header button.
   const inUS = (lat, lon) => lat > 17 && lat < 72 && lon > -180 && lon < -64;
   const mapURL = (lat, lon, label, zoom) =>
-    `${MAPS}?pin=${(+lat).toFixed(5)},${(+lon).toFixed(5)}&label=${encodeURIComponent(label || '')}#${zoom}/${(+lat).toFixed(5)}/${(+lon).toFixed(5)}`;
+    `${K.maps}?pin=${(+lat).toFixed(5)},${(+lon).toFixed(5)}&label=${encodeURIComponent(label || '')}#${zoom}/${(+lat).toFixed(5)}/${(+lon).toFixed(5)}`;
 
   function linkMaps(doc, btn) {
     btn.style.display = 'none';

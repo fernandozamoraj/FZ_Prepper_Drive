@@ -108,7 +108,7 @@
 </div>
 
 <div id="map"></div>
-<div id="ver">Offline Maps v1.13.2 (whole US, offline directions) · © OpenMapTiles © OpenStreetMap contributors · Routing: GraphHopper</div>
+<div id="ver">Offline Maps v1.13.3 (whole US, offline directions) · © OpenMapTiles © OpenStreetMap contributors · Routing: GraphHopper</div>
 <script src="/lib/maplibre-gl.js"></script>
 <script src="/lib/pmtiles.js"></script>
 <script>
@@ -338,7 +338,8 @@
   // ---------- Map ↔ library: pins from article links, "read about it" popups ----------
   // Library articles link here as /?pin=lat,lon&label=Name#zoom/lat/lon (see home/nav.js).
   // Clicking a town or landmark name looks up its Wikipedia / Wikivoyage article in the offline library (port 8080).
-  const LIB = `${location.protocol}//${location.hostname}:8080/`;
+  let LIB = `${location.protocol}//${location.hostname}:8080/`;
+  if (window.fzKit) fzKit.ready.then(k => { LIB = k.lib; });  // the library may have moved port (nav.js)
   const STATES = {AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",
     DC:"District of Columbia",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",
     KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",

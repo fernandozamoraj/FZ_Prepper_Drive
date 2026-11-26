@@ -93,7 +93,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
     <a href="/nojs">📚 Plain library list (old browsers)</a>
   </div>
 
-  <footer>Offline prepper kit v1.11.0 · served by kiwix-serve</footer>
+  <footer>Offline prepper kit v1.13.3 · served by kiwix-serve</footer>
 </div>
 
 <script>
@@ -258,6 +258,7 @@ document.addEventListener('click', e => {
 });
 $('#mapslink').href = `${location.protocol}//${location.hostname}:8090/`;
 $('#hublink').href = `${location.protocol}//${location.hostname}:8000/`;
+if (window.fzKit) fzKit.ready.then(k => { $('#mapslink').href = k.maps; $('#hublink').href = k.hub; });  // moved ports
 
 // Read #q=...&in=... (bookmarks, links shared to phones, back button)
 function fromHash(){

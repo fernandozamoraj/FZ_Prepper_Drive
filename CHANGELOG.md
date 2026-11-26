@@ -1,5 +1,11 @@
 # Changelog: offline prepper kit
 
+## 1.13.3 (2026-11-26)
+- Ports: if another program already uses the library's or the map's port (on a Windows PC, Wondershare's
+  `WsTaskNotification.exe` held 8090, so the map never started), the kit now uses the next free port (8081..., 8091...)
+  and says so in its window. The directions router does the same from 8989. The hub publishes `/ports.json` and the
+  header bar, Home page, library home page, Bible page and map follow it, so every link still works.
+
 ## 1.13.2 (2026-11-26)
 From the first real Windows run of `install all`:
 - `install` no longer stops when one download fails: before, `download` exited with an error, so the Bible, map,

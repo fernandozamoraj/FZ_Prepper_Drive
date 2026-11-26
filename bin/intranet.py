@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.13.0).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.13.2).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -43,6 +43,18 @@ def port_up(port):
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
+# How to tell that a port is really the kit's server and not some other program using it
+CHECK = {"library": "/catalog/v2/root.xml", "maps": "/style/style.json"}
+
+
+def is_ours(name, port):
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{CHECK[name]}", timeout=3) as r:
+            return r.status == 200
+    except OSError:
+        return False
+
+
 def library_has_home_page():
     try:
         with urllib.request.urlopen("http://127.0.0.1:8080/", timeout=3) as r:
@@ -70,7 +82,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.unquote(self.path.split("?", 1)[0])
         if path == "/status.json":
-            return self.send_json({n: port_up(p) for n, p in PORTS.items()})
+            return self.send_json({n: port_up(p) and is_ours(n, p) for n, p in PORTS.items()})
         if path == "/guides.json":
             return self.send_json(guide_list())
         if path in ("/bible", "/bible/"):
@@ -116,6 +128,10 @@ def lan_ip():
 def start_services():
     for name, svc_port in PORTS.items():
         if port_up(svc_port):
+            if not is_ours(name, svc_port):
+                print(f"  {name}: NOT started: port {svc_port} is used by another program. "
+                      "Close that program, then start the kit again.")
+                continue
             print(f"  {name}: already running")
             if name == "library" and not library_has_home_page():
                 print("  WARNING: that library server is an old one without the search home page.\n"

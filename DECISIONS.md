@@ -82,3 +82,21 @@
 - Town search on Windows uses pyosmium (BackReferenceWriter + areas), which matches osmium-tool's
   `tags-filter`/`export` output; osmium-tool is still preferred when installed (faster, and Intel Macs need it).
 - License MIT for the code; content keeps its own licenses.
+
+## 2026-11-25: Allow slow first routes when running from a USB stick
+- **Context:** On PKNY_256 the drive reads about 7 MB/s while busy. GraphHopper memory-maps the 8.5 GB graph, so the
+  first route across new territory reads it from the stick: Tulsa to OKC took 36 s, NYC to LA over 60 s (then 24 s
+  with the drive idle). Repeats are instant because the OS caches what was read.
+- **Decision:** Proxy timeout 60 s -> 180 s, with a separate "took too long, try again" message. Not preloading the graph
+  into RAM: it needs over 8 GB, more than many relatives' laptops have.
+- **Consequence:** The first long route on a slow drive can take tens of seconds; a faster USB 3 stick or copying the kit
+  to the computer's own disk makes it near instant.
+
+## 2026-11-26: Install keeps going past failed downloads
+- **Context:** On the first Windows `install all`, the Bible and maps were never built and the hub still showed maps as
+  running. `download` exits non-zero if any one of ~150 files fails, which ended the whole install, and the hub's
+  status only checked whether the port was open.
+- **Decision:** In `install`, a failed download is counted and reported at the end; the builds still run (a missing PDF
+  should not cost you the map). A failed build step still stops, naming the step and the command to resume.
+  Status checks ask the kit's own server (`/catalog/v2/root.xml`, `/style/style.json`).
+- **Consequence:** `download` on its own still exits 2 when something failed, so scripts can tell.

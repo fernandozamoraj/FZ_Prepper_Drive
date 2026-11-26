@@ -1,5 +1,26 @@
 # Changelog: offline prepper kit
 
+## 1.13.2 (2026-11-26)
+From the first real Windows run of `install all`:
+- `install` no longer stops when one download fails: before, `download` exited with an error, so the Bible, map,
+  directions and town search were silently skipped. Now it carries on and says at the end how many downloads to retry.
+- `install` names each step in the window and the log ("step 4 of 6: map"); if a step stops (error, Ctrl+C, PC asleep)
+  it says which one and the exact command to carry on. Errors (`die`) are also written to `download.log`.
+- Map, directions and town-search builds now show their progress in the window (was silent for hours); the full output
+  is still saved to `build/planetiler.log` and `routing/build.log`.
+- Home page: a green dot now means the kit's own server answers (library catalog, map style), not just that something
+  is using the port. If another program has port 8080/8090, the window says so instead of starting nothing.
+- Windows console: characters the console can't show are replaced instead of stopping the tool.
+
+## 1.13.1 (2026-11-25)
+- Tested running from the USB drive (PKNY_256) on a Mac with only the drive's own programs: hub, library, Bible,
+  header bar, maps and directions all work. First start from the drive is slow (about 1.5 min for the library
+  and 3 min for directions on this stick); later starts are faster.
+- Directions: the map server now waits up to 3 minutes for a route (was 60 s). On a slow drive the first long route
+  took 18-36 s, and over 60 s while the drive was busy, which showed a wrong "still loading" message.
+  A timed-out route now says so ("try again: it is faster the second time"), and the "not running" message tells
+  drive users to close the window and start again instead of naming `startmaps`.
+
 ## 1.13.0 (2026-11-25)
 - Quick start: `kit.sh`/`kit.bat install all|wiki|maps` (wiki: library + Bible, `--only wikipedia_en_all` for just
   Wikipedia; maps: map + directions + town search, `--state texas` for a quick one-state try) and `start`

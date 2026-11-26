@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""serve-maps: serve the offline map viewer + .pmtiles over the local network (v1.11.0).
+"""serve-maps: serve the offline map viewer + .pmtiles over the local network (v1.13.2).
 
 Usage: serve-maps.py [port]   (default 8090)
 Serves ../map-viewer/ at /, and ../maps/*.pmtiles at /tiles/. Supports HTTP Range requests,
@@ -41,17 +41,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def proxy_router(self):
+        # 180 s: from a slow USB stick the first long route reads a lot of the 8.5 GB graph (measured 18-36 s
+        # idle, over 60 s while the drive was busy). Later routes over the same roads are instant (cached).
         try:
-            with urllib.request.urlopen(ROUTER + self.path, timeout=60) as r:
+            with urllib.request.urlopen(ROUTER + self.path, timeout=180) as r:
                 status, body = r.status, r.read()
         except urllib.error.HTTPError as e:  # GraphHopper's own errors (e.g. point not near a road)
             status, body = e.code, e.read()
-        except OSError:
+        except OSError as e:
             status = 503
-            if router_proc and router_proc.poll() is None:
-                body = b'{"message":"Directions are still loading (a few seconds after start). Try again shortly."}'
+            timed_out = isinstance(e, TimeoutError) or isinstance(getattr(e, "reason", None), TimeoutError)
+            if timed_out:
+                body = b'{"message":"This route took too long (the drive may be slow or busy). Try again: it is faster the second time."}'
+            elif router_proc and router_proc.poll() is None:
+                body = b'{"message":"Directions are still loading (up to a few minutes after start from a USB drive). Try again shortly."}'
             else:
-                body = b'{"message":"Directions are not running. Restart startmaps (routing graph: routing/build-routing.sh)."}'
+                body = b'{"message":"Directions are not running. Close the Prepper Kit window and start it again."}'
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))

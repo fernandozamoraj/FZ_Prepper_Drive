@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.13.0)
+# FZ Prepper Drive (offline prepper kit v1.13.2)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
@@ -37,6 +37,11 @@ You can add more later: e.g. after **C**, run `install wiki` to add the library.
 (`texas`, `new-mexico`, `north-carolina`, ...). Wiki and maps installs fetch programs for **this** computer only;
 `install all` fetches them for Windows **and** Mac so the folder or drive runs on both.
 `regenerate-all.sh` / `regenerate-all.bat` do the same as `install all`.
+
+The window names each step ("step 4 of 6: map") and the map builds print their progress as they go. If a step stops
+(an error, Ctrl+C, the computer went to sleep), the last lines say which step and the exact command to carry on;
+finished parts are kept. A download that fails doesn't stop the install: the end says how many to retry.
+Turn off sleep while it runs (Windows: Settings → System → Power).
 
 ### 3. Run it
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""kit.py (offline prepper kit v1.13.0): download and rebuild everything in the kit, on macOS or Windows.
+"""kit.py (offline prepper kit v1.13.2): download and rebuild everything in the kit, on macOS or Windows.
 
 Run it through the wrappers, which also fetch a portable Python the first time if needed:
     macOS:   ./kit.sh <command> [options]
@@ -42,7 +42,7 @@ import tempfile
 import time
 import zipfile
 
-VERSION = "1.13.0"
+VERSION = "1.13.2"
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(KIT, "bin"))  # kitplatform (python -I leaves script dirs out of sys.path)
@@ -126,7 +126,7 @@ def say(msg, log=LOG):
 
 
 def die(msg):
-    print(f"ERROR: {msg}", file=sys.stderr)
+    say(f"ERROR: {msg}")  # also in download.log, so a stop shows there too
     sys.exit(1)
 
 
@@ -306,11 +306,24 @@ def build_venv():
     return py
 
 
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
 def run(cmd, cwd=None, log=None):
     print("$ " + " ".join(f'"{c}"' if " " in c else c for c in cmd), flush=True)
-    if log:
-        with open(log, "w", encoding="utf-8") as f:
-            rc = subprocess.call(cmd, cwd=cwd, stdout=f, stderr=subprocess.STDOUT)
+    if log:  # show the program's progress in the window and keep a copy in the log
+        print(f"    (this can take a long time; output is also saved to {log})", flush=True)
+        with open(log, "w", encoding="utf-8", errors="replace") as f:
+            p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            try:
+                for raw in p.stdout:
+                    line = ANSI.sub("", raw.decode("utf-8", "replace"))  # colour codes show as junk in cmd.exe
+                    f.write(line)
+                    f.flush()
+                    sys.stdout.write("    " + line)
+                    sys.stdout.flush()
+            finally:
+                rc = p.wait()
     else:
         rc = subprocess.call(cmd, cwd=cwd)
     if rc != 0:
@@ -503,7 +516,12 @@ def cmd_download(a):
         else:
             die(f"unknown set {s!r} (core, programming, pdfs, states, all)")
     say(f"=== download done, {fails} failed ===")
-    if fails:
+    return fails
+
+
+def cmd_download_cli(a):
+    if cmd_download(a):
+        say("Some downloads failed (see FAIL lines above). Run the same command again to retry them.")
         sys.exit(2)
 
 
@@ -544,12 +562,15 @@ def cmd_build_routing(a):
     jar = os.path.join(routing, "graphhopper-web-11.1.jar")
     os.path.exists(jar) or die("routing/graphhopper-web-11.1.jar missing: run setup")
     if not a.graph and port_open(8989):
-        die("the directions router is running (port 8989); stop the map server before rebuilding its graph")
+        die("the directions router is running (port 8989). Stop the kit first (Ctrl+C or close its window), "
+            "then run this again")
     shutil.rmtree(graph, ignore_errors=True)
     os.makedirs(os.path.join(routing, "logs"), exist_ok=True)
     say(f"=== build-routing: {os.path.basename(pbf)} -> {graph} (GraphHopper, -Xmx{a.xmx}) ===")
     run([find_java_or_die(), f"-Xmx{a.xmx}", f"-Ddw.graphhopper.datareader.file={pbf}",
-         f"-Ddw.graphhopper.graph.location={graph}", "-jar", jar, "import", "config.yml"],
+         f"-Ddw.graphhopper.graph.location={graph}",
+         "-Ddw.logging.appenders[0].threshold=INFO",  # show import progress in the window (config.yml: WARN)
+         "-jar", jar, "import", "config.yml"],
         cwd=routing, log=os.path.join(routing, "build.log"))
     os.path.exists(os.path.join(graph, "properties")) or die("graph not built; see routing/build.log")
     say(f"built {graph}")
@@ -602,24 +623,54 @@ def cmd_all(a):
 
 
 def cmd_install(a):
-    """Quick-start bundles: all, wiki (library + Bible) or maps (map + directions + town search)."""
+    """Quick-start bundles: all, wiki (library + Bible) or maps (map + directions + town search).
+    Each step is named in the window and the log; if one stops, it says which and how to carry on."""
     plat = a.platform or ("all" if a.what == "all" else "current")
-    cmd_setup(argparse.Namespace(platform=plat, force=False))
+    again = f"{'kit.bat' if WINDOWS else './kit.sh'} install {a.what}" + \
+        (f" --only {a.only}" if a.only else "") + (f" --state {a.state}" if a.state else "")
+    steps = [("programs (setup)", lambda: cmd_setup(argparse.Namespace(platform=plat, force=False)))]
+    failed_downloads = []
     if a.what in ("all", "wiki"):
         sets = "all" if a.what == "all" else "core,programming"
-        cmd_download(argparse.Namespace(set=sets, only=a.only, update=False))
-        cmd_build_bible(argparse.Namespace())
+        steps += [("library and PDF downloads",
+                   lambda: failed_downloads.append(cmd_download(argparse.Namespace(set=sets, only=a.only, update=False)))),
+                  ("Bible", lambda: cmd_build_bible(argparse.Namespace()))]
     if a.what in ("all", "maps"):
         pbf = None
         if a.state:  # quick try: one state's extract instead of the 12 GB US one
             pbf = kit_path("maps", f"{a.state}-latest.osm.pbf")
-            get(f"https://download.geofabrik.de/north-america/us/{a.state}-latest.osm.pbf", pbf) or \
-                die(f"no OpenStreetMap extract for {a.state!r} (use names like texas, new-mexico, arkansas)")
+            steps.append((f"{a.state} map data", lambda: get(
+                f"https://download.geofabrik.de/north-america/us/{a.state}-latest.osm.pbf", pbf) or
+                die(f"no OpenStreetMap extract for {a.state!r} (use names like texas, new-mexico, arkansas)")))
         base = {"pbf": pbf, "refresh_osm": False}
-        cmd_build_map(argparse.Namespace(**base, output=None, xmx="14g"))
-        cmd_build_routing(argparse.Namespace(**base, graph=None, xmx="18g"))
-        cmd_build_places(argparse.Namespace(**base, output=None, engine="auto"))
+        steps += [("map (build-map)", lambda: cmd_build_map(argparse.Namespace(**base, output=None, xmx="14g"))),
+                  ("directions (build-routing)",
+                   lambda: cmd_build_routing(argparse.Namespace(**base, graph=None, xmx="18g"))),
+                  ("town search (build-places)",
+                   lambda: cmd_build_places(argparse.Namespace(**base, output=None, engine="auto")))]
+    for n, (name, fn) in enumerate(steps, 1):
+        say(f"##### install {a.what}: step {n} of {len(steps)}: {name} #####")
+        try:
+            fn()
+        except KeyboardInterrupt:
+            say(f"STOPPED (Ctrl+C) during step {n}: {name}. To carry on later, run: {again}")
+            sys.exit(130)
+        except SystemExit as e:
+            if e.code in (0, None):
+                raise
+            say(f"STOPPED: step {n} ({name}) failed; the error is just above. Finished parts are kept. "
+                f"Fix the problem (or just retry if the computer slept or lost internet), then run: {again}")
+            raise
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            say(f"STOPPED: step {n} ({name}) failed with the error above. Finished parts are kept. "
+                f"Run again with: {again}")
+            sys.exit(1)
     say(f"=== install {a.what} done. Start the kit with: {'kit.bat' if WINDOWS else './kit.sh'} start ===")
+    if sum(failed_downloads):
+        say(f"NOTE: {sum(failed_downloads)} download(s) failed (FAIL lines in download.log). "
+            f"Everything else is installed; run {again} again to retry them.")
 
 
 def cmd_start(a):
@@ -710,7 +761,7 @@ def main():
                    "pdfs, states (states = optional per-state OSM extracts for tests)")
     s.add_argument("--only", help="only items whose name contains this text, e.g. --only knots")
     s.add_argument("--update", action="store_true", help="fetch newer library editions even if you have one")
-    s.set_defaults(fn=cmd_download)
+    s.set_defaults(fn=cmd_download_cli)
 
     def osm_args(s, out_help=None, xmx=None):
         s.add_argument("--pbf", help="use this .osm.pbf instead of build/us.osm.pbf (e.g. a state, for a quick test)")
@@ -746,6 +797,11 @@ def main():
     s = sub.add_parser("version", help="print the kit version")
     s.set_defaults(fn=lambda a: print(f"offline prepper kit {VERSION}"))
 
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     a = p.parse_args()
     a.fn(a)
 

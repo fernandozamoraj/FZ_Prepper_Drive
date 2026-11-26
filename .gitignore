@@ -18,8 +18,11 @@
 !/scripts/*.py
 !/bin/intranet.py
 !/bin/kitplatform.py
+!/bin/catalog.py
 !/bin/serve-maps.py
 !/home/*.html
+!/home/media.css
+!/home/media.js
 !/home/nav.js
 !/home/viewer_settings.js
 !/map-viewer/index.html

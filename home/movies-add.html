@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add Your Movies</title>
+<!-- Offline prepper kit v1.14.0: how to add films to the Movies page by hand. Served by bin/intranet.py at /movies/add -->
+<link rel="stylesheet" href="/media.css">
+<style>
+ol.steps{padding-left:22px} ol.steps>li{margin:0 0 18px}
+.where{font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--chip);border-radius:8px;padding:8px 10px;overflow-wrap:anywhere}
+table{border-collapse:collapse;width:100%;font-size:14px} td,th{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<script src="/media.js"></script>
+<div class="wrap">
+  <h1>Add more movies</h1>
+  <p class="sub"><a href="/movies">← Movies</a> · Three ways to put more films on the kit. Only add films you're allowed to
+    download and share: <b>public domain</b> or an open license such as <b>Creative Commons</b>.</p>
+
+  <ol class="steps">
+    <li><h2>From the Internet Archive (easiest)</h2>
+      <p>While you have internet, find a film on <b>archive.org</b> (the <i>Feature Films</i>, <i>Film Noir</i>,
+        <i>Silent Films</i> and <i>SciFi / Horror</i> collections are good places to look; the item page shows its license).
+        Copy the address of its page, then on the computer that runs the kit:</p>
+      <p id="c1"></p>
+      <p class="muted">The kit picks the item's MP4 that plays in every browser, downloads it, and lists it under
+        <b>My movies</b>. Options: <code>--title "Name"</code>, <code>--year 1950</code>,
+        <code>--category comedy</code> (comedy, drama, mystery, adventure, horror, open-movies, my-movies).
+        It warns you when archive.org shows no free license for the item.</p></li>
+
+    <li><h2>From a direct link to a video file</h2>
+      <p>For a film you can download straight from a site that offers it freely (for example Blender Studio's open movies):</p>
+      <p id="c2"></p></li>
+
+    <li><h2>Copy video files into the movies folder</h2>
+      <p>Put any video file (from a USB stick, a camera, your own videos) into this folder on the kit, or into one of
+        the category folders next to it (<code>comedy</code>, <code>drama</code>, <code>horror</code>…):</p>
+      <p class="where" id="folder">movies/my-movies/</p>
+      <p class="muted">Reload the Movies page and it's there, named after the file (e.g. <code>Family Picnic 2019.mp4</code>).
+        No command needed.</p></li>
+  </ol>
+
+  <h2>Which files play in the browser</h2>
+  <table>
+    <tr><th>File</th><th>Plays here?</th></tr>
+    <tr><td><b>.mp4</b> / <b>.m4v</b> (H.264 video)</td><td>Yes, on every phone, tablet and computer. Best choice.</td></tr>
+    <tr><td><b>.webm</b></td><td>Yes in Chrome, Firefox, Edge and Android; recent iPhones too.</td></tr>
+    <tr><td><b>.mkv</b>, <b>.avi</b>, <b>.mov</b></td><td>Sometimes. If not, use <b>Download</b> and play it with
+      <b>VLC</b> or <b>mpv</b> from the <a href="/software">Software</a> page.</td></tr>
+  </table>
+
+  <h2>Removing a film</h2>
+  <p class="tips">Delete its file from the <code>movies</code> folder. For films added with <code>movies add</code>, also
+    remove its entry from <code>movies/my-movies.json</code> (or leave it: it will just show as not downloaded).</p>
+  <footer>Offline prepper kit v1.14.0</footer>
+</div>
+<script>
+const {esc, cmd, json} = fzMedia;
+json('/movies.json').then(d => {
+  document.getElementById('c1').innerHTML = cmd(`${d.cmd} movies add https://archive.org/details/ITEM-NAME`) +
+    '<br><span class="muted">for example </span>' + cmd(`${d.cmd} movies add https://archive.org/details/TheStranger_0 --category mystery`);
+  document.getElementById('c2').innerHTML = cmd(`${d.cmd} movies add https://example.org/films/my-film.mp4 --title "My Film" --year 2020`);
+  document.getElementById('folder').textContent = d.folder.replace(/[\\/]+$/, '') + (d.folder.includes('\\') ? '\\my-movies\\' : '/my-movies/');
+}).catch(() => {});
+</script>
+</body>
+</html>

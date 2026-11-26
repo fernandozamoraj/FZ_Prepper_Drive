@@ -1,8 +1,9 @@
-# FZ Prepper Drive (offline prepper kit v1.13.3)
+# FZ Prepper Drive (offline prepper kit v1.14.0)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
-driving directions**, and **PDF survival/medical guides**, all on one Home page (http://localhost:8000) that phones
+driving directions**, **PDF survival/medical guides**, and optional **books, audiobooks, movies and a software
+center**, all on one Home page (http://localhost:8000) that phones
 on the same Wi-Fi can open too.
 
 **This repository holds only the code.** The content (libraries, maps, PDFs, routing data) and the programs it uses
@@ -61,6 +62,88 @@ Format a 256 GB+ drive as **exFAT** (see below), then `./make-drive.sh /Volumes/
 `make-drive.bat E:\` (Windows). On the drive, anyone can double-click `Start Prepper Kit (Windows).bat` or
 `Start Prepper Kit (Mac).command`; `HOW TO START.html` explains it in plain words.
 
+## Books, audiobooks, movies, software (optional modules)
+
+These are **not** part of `install all`: you pick what you want. Each has its own page on the Home page
+(**Books**, **Movies**, **Software** in the header bar); a module you haven't installed shows how to add it.
+Examples are for a Mac (`./kit.sh`); on Windows type `kit.bat` instead.
+
+**Easiest: a menu.** Run the module's name alone, then type numbers, categories or keywords:
+
+```bash
+./kit.sh books
+```
+```bash
+./kit.sh movies
+```
+```bash
+./kit.sh software
+```
+
+**Or say exactly what you want** with `get`. Words can be a **category**, a **group**, an **id**, or any
+**keyword** from the title or author (quote a phrase). `list` shows everything (✓ = downloaded); `--dry-run` shows
+what `get` would fetch without downloading.
+
+| You want | Command |
+|---|---|
+| see every book and its id | `./kit.sh books list` |
+| all math books | `./kit.sh books get math` |
+| nursing + Calculus 1 + Dracula | `./kit.sh books get nursing calculus-1 dracula` |
+| a book by keyword or phrase | `./kit.sh books get "think python" austen` |
+| all textbooks / all fiction / everything | `./kit.sh books get textbooks` · `books get fiction` · `books get all` |
+| novels **with their audiobooks** (~8 GB of MP3) | `./kit.sh books get fiction --audio` |
+| only the audiobook | `./kit.sh books get treasure-island --audio-only` |
+| PDF first instead of EPUB, or both | `./kit.sh books get sicp --format pdf` · `--format both` |
+| every book, text only (~3.5 GB; Biology alone is 400 MB) | `./kit.sh install books` |
+| all comedies and the open movies | `./kit.sh movies get comedy open-movies` |
+| films by keyword | `./kit.sh movies get "sherlock holmes" nosferatu` |
+| all 40 films (~17 GB) | `./kit.sh install movies` |
+| another free film from archive.org | `./kit.sh movies add https://archive.org/details/TheStranger_0 --category mystery` |
+| a film from a direct video link | `./kit.sh movies add https://example.org/film.mp4 --title "My Film"` |
+| VLC and Calibre for every system | `./kit.sh software get vlc calibre` |
+| everything for Windows only | `./kit.sh software get all --os windows` |
+| e-book readers for this computer | `./kit.sh software get ebook --os current` |
+| all programs, all systems (~3.4 GB) | `./kit.sh install software` |
+| **update** everything you have to the newest versions | `./kit.sh software update` |
+| only see what's out of date (downloads nothing) | `./kit.sh software check` |
+
+**Books** (63, saved in `books/<category>/`): EPUB first, PDF when a book has no EPUB (`--format` changes that).
+
+| Category (word) | Books | Source, format |
+|---|---|---|
+| `math` | Prealgebra, Elementary/Intermediate/College Algebra, Precalculus, Calculus Vol 1–3, Introductory Statistics, Contemporary Mathematics | OpenStax, PDF |
+| `nursing` | Fundamentals of Nursing, Pharmacology, Maternal-Newborn, Psychiatric-Mental Health, Nutrition for Nurses | OpenStax, PDF |
+| `science` | Biology, Chemistry, College Physics, University Physics Vol 1–3 | OpenStax, PDF |
+| `programming` | Intro to Python Programming (OpenStax), Think Python, Think Java, Open Data Structures (Python, Java), Operating Systems: Three Easy Pieces (chapter PDFs), SICP (EPUB), Pro Git (EPUB), The Rust Programming Language (Kiwix library: opens in the Library) | various |
+| `business` | Principles of Economics, Management, Finance, Financial Accounting; Entrepreneurship; Business Ethics; Business Law I | OpenStax, PDF |
+| `history` | U.S. History, World History Vol 1–2, Intro to Philosophy, American Government, Intro to Anthropology | OpenStax, PDF |
+| `adventure` `romance` `mystery` `scifi` (group `fiction`) | Monte Cristo, Three Musketeers, Treasure Island, Robinson Crusoe, The Lost World, King Solomon's Mines · Pride and Prejudice, Sense and Sensibility, Jane Eyre, Persuasion, North and South · Adventures of Sherlock Holmes, Hound of the Baskervilles, The Moonstone, Mysterious Affair at Styles · Time Machine, War of the Worlds, Frankenstein, Dracula, Journey to the Centre of the Earth | Project Gutenberg EPUB; LibriVox MP3 audiobook for all but *Styles* (LibriVox has none) |
+
+Novels are Gutenberg's illustrated EPUBs (about 165 MB for all 20) from the gutenberg.pglaf.org mirror, which can
+be slow (about 100 KB/s): allow half an hour for all of them. OpenStax books are always the newest edition (looked up on openstax.org when you download). OpenStax has no EPUBs.
+Audiobooks go to `audiobooks/<category>/` and play on the Books page (it remembers where you stopped on each device).
+
+**Movies** (40, saved in `movies/<category>/`, ~17 GB in all, 35 MB to 770 MB each): categories `comedy`, `drama`,
+`mystery`, `adventure`, `horror` (public domain classics from the Internet Archive) and `open-movies` (Blender Studio
+and Sita Sings the Blues, Creative Commons). The Movies page streams them to any phone, tablet or computer on the Wi-Fi
+(with seeking and resume) or downloads them. To add your own, see **How to add more movies** on that page:
+`movies add` for archive.org or a direct link, or just copy video files into `movies/my-movies/`.
+
+**Software** (saved in `software/<windows|mac|linux>/<program>/`, always the newest release): official releases
+only, straight from each project (no SourceForge or download portals, so no bundled adware), checked against the
+publisher's checksum where one exists (shown as **✓ verified** on the page). VLC, mpv (MPlayer's maintained successor;
+MPlayer itself ships no official Windows or Mac programs), Calibre, SumatraPDF (Windows), Thorium Reader,
+7-Zip, Firefox, RetroArch (with a cores pack for Windows and Linux) and Notepad++ (Windows). Where a program has no
+download for a system (e.g. VLC on Linux), the page says how to get it. Ids: `vlc mplayer mpv calibre sumatrapdf thorium
+7zip firefox retroarch notepadpp`; keywords like `video`, `ebook`, `editor` work too.
+
+**Keeping software up to date:** run `./kit.sh software update` now and then while you have internet. It asks each
+publisher for its newest release, downloads only what changed (checksum-checked like the first time) and removes the
+old version. `software check` just lists what's behind. The Software page (and its Home page card) warns when a program
+hasn't been checked for updates in more than **4 months**, and shows the command to run.
+
+To add a book, film or program to the lists, add a line to `bin/catalog.py` (its top comment explains the fields).
+
 ## What you need (manual)
 
 1. **Disk:** see the quick-start table (everything: about **160 GB** plus **~20 GB** of build files) (`build/`). Use an internal disk
@@ -90,6 +173,10 @@ Format a 256 GB+ drive as **exFAT** (see below), then `./make-drive.sh /Volumes/
 | `build-bible` | `kiwix/bible_en_kjv_<yyyy-mm>.zim`, `home/kjv.json` | KJV text from eBible.org (public domain). |
 | `build-all` | the four builds above | |
 | `all` | same as `install all` | What `regenerate-all` runs. |
+| `books [list\|get] [words]` | `books/`, `audiobooks/` | optional; menu when run alone. `--audio`, `--audio-only`, `--format epub\|pdf\|both`, `--dry-run` |
+| `movies [list\|get\|add] [words]` | `movies/` | optional; `add <archive.org link or video URL>` with `--title`, `--year`, `--category` |
+| `software [list\|get\|update\|check] [words]` | `software/<os>/` | optional; `--os windows,mac,linux\|current\|all` (default all); `update` = newest versions of what you have |
+| `install books\|movies\|software [words]` | all of that module | not part of `install all`; `install books --audio` adds audiobooks |
 | `make-drive DRIVE` | copies the kit to `DRIVE/offline-prepper-kit` plus the launchers at the drive's top | `--no-libraries` skips the big `.zim` files. Only changed files are copied. |
 
 ## More on running
@@ -107,6 +194,9 @@ Format a 256 GB+ drive as **exFAT** (see below), then `./make-drive.sh /Volumes/
 | `kit.sh`, `kit.bat`, `regenerate-all.*`, `make-drive.*` | yes | entry points (wrappers around `scripts/kit.py`) |
 | `scripts/kit.py`, `scripts/places_extract.py` | yes | all download/build logic, cross-platform Python |
 | `bin/intranet.py`, `bin/serve-maps.py`, `bin/kitplatform.py` | yes | the kit's servers (hub, map + directions proxy, program finder) |
+| `bin/catalog.py` | yes | the lists of optional books, audiobooks, movies and software |
+| `home/books.html`, `home/movies.html`, `home/movies-add.html`, `home/software.html`, `home/media.css`, `home/media.js` | yes | Books, Movies (+ how to add more) and Software pages |
+| `books/`, `audiobooks/`, `movies/`, `software/` | no | optional modules: downloaded |
 | `home/`, `map-viewer/index.html`, `map-viewer/style/style.json` | yes | web pages: hub, Bible search, library home page, header bar, map |
 | `routing/config.yml`, `routing/make_places.py` | yes | GraphHopper config, town list builder |
 | `bible/build-bible.py` | yes | builds the Bible library |
@@ -133,6 +223,8 @@ The code in this repository is MIT licensed (see `LICENSE`). Downloaded content 
 OpenStreetMap data © OpenStreetMap contributors (ODbL); map tiles schema © OpenMapTiles; Wikipedia, Wikivoyage,
 Wikibooks and Stack Exchange content CC BY-SA; Kiwix tools GPL-3.0; GraphHopper Apache-2.0; Planetiler Apache-2.0;
 MapLibre BSD-3-Clause; OSM Bright style BSD/CC-BY; Noto fonts OFL; Hesperian books under Hesperian's terms;
-US government manuals public domain; KJV text public domain (eBible.org).
+US government manuals public domain; KJV text public domain (eBible.org). Optional modules: OpenStax books CC BY-NC-SA 4.0;
+Project Gutenberg and LibriVox public domain; other books as listed on the Books page and in `books/ABOUT THESE BOOKS.txt`;
+films public domain or Creative Commons (shown with each); programs under their own open-source licenses (shown with each).
 
 More detail: `docs/user-guide.md` (how to use each part, version notes), `CHANGELOG.md`, `DECISIONS.md`.

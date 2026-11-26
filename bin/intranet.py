@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.13.3).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.14.0).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -11,11 +11,15 @@ built by bible/build-bible.sh); /bible-info.json names the library's Bible file 
 Starts the library (kiwix-serve, port 8080) and the maps (serve-maps.py, port 8090, which starts
 the directions router) unless they are already running. If another program uses one of those ports, the
 service moves to the next free one (8081..., 8091...); /ports.json tells the pages (nav.js) where everything is.
+Optional modules (bin/catalog.py): /books, /movies (+ /movies/add, how to add your own), /software pages with
+/books.json, /movies.json, /software.json; their files are served from /files/<books|audiobooks|movies|software>/
+with byte ranges, so videos and audiobooks stream and seek (iPhones need that).
 """
 import http.server
 import json
 import os
 import posixpath
+import re
 import signal
 import socket
 import sys
@@ -26,6 +30,8 @@ import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # kitplatform (python -I leaves the script dir out)
 import kitplatform  # noqa: E402
+import catalog  # noqa: E402  (books, audiobooks, movies, software)
+import mimetypes  # noqa: E402
 
 KIT = kitplatform.KIT
 GUIDES = os.path.join(KIT, "guides")
@@ -76,6 +82,100 @@ def guide_list():
     return dict(sorted(out.items()))
 
 
+KIT_CMD = "kit.bat" if sys.platform == "win32" else "./kit.sh"  # the command on the computer running the kit
+FILE_ROOTS = {"books", "audiobooks", "movies", "software"}
+mimetypes.add_type("application/epub+zip", ".epub")
+mimetypes.add_type("video/mp4", ".m4v")
+
+
+def file_url(path):
+    return "/files/" + urllib.parse.quote(os.path.relpath(path, KIT).replace(os.sep, "/"))
+
+
+def books_json():
+    cats = []
+    for cid, (name, group) in catalog.CATEGORIES.items():
+        items = []
+        for b in (b for b in catalog.BOOKS if b["cat"] == cid):
+            have = catalog.book_status(b)
+            got = {}
+            for fmt, p in have.items():
+                if fmt == "audio":
+                    try:
+                        with open(os.path.join(catalog.audio_dir(b), catalog.TRACKS), encoding="utf-8") as f:
+                            titles = json.load(f)
+                    except (OSError, ValueError):
+                        titles = {}
+                    got["audio"] = [{"name": titles.get(os.path.basename(t)) or
+                                     os.path.splitext(os.path.basename(t))[0].replace("_", " "), "url": file_url(t)}
+                                    for t in p]
+                elif fmt == "library":
+                    got["library"] = p
+                elif os.path.isdir(p):  # one PDF per chapter
+                    got[fmt] = [{"name": f[:-4], "url": file_url(os.path.join(p, f))} for f in catalog.visible(p)
+                                if f.lower().endswith(".pdf")]
+                else:
+                    got[fmt] = {"url": file_url(p), "mb": round(os.path.getsize(p) / 1e6, 1)}
+            items.append({k: b.get(k) for k in ("id", "title", "author", "license")} |
+                         {"formats": catalog.formats_of(b), "audiobook": bool(b.get("librivox")), "have": got})
+        cats.append({"id": cid, "name": name, "group": group, "books": items})
+    return {"cmd": KIT_CMD, "categories": cats}
+
+
+def movies_json():
+    movies, known = catalog.all_movies(), set()
+    out = {c: [] for c in catalog.MOVIE_CATEGORIES}
+    for m in movies:
+        p = catalog.movie_file(m)
+        known.add(os.path.normcase(os.path.abspath(p)))
+        have = os.path.isfile(p)
+        out.setdefault(m["cat"], []).append(
+            {k: m.get(k) for k in ("id", "title", "year", "minutes", "license", "ia")} |
+            {"url": file_url(p) if have else None, "mb": round(os.path.getsize(p) / 1e6) if have else None})
+    for root, dirs, files in os.walk(catalog.MOVIES_DIR):  # videos dropped in by hand
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for f in sorted(files):
+            p = os.path.join(root, f)
+            if f.startswith(".") or not f.lower().endswith(catalog.VIDEO_EXT) or \
+                    os.path.normcase(os.path.abspath(p)) in known:
+                continue
+            cat = os.path.relpath(root, catalog.MOVIES_DIR).split(os.sep)[0]
+            cat = cat if cat in catalog.MOVIE_CATEGORIES else "my-movies"
+            out.setdefault(cat, []).append({"id": None, "title": os.path.splitext(f)[0].replace("_", " "), "year": None,
+                                            "minutes": None, "license": "added by you", "url": file_url(p),
+                                            "mb": round(os.path.getsize(p) / 1e6)})
+    return {"cmd": KIT_CMD, "folder": catalog.MOVIES_DIR,
+            "categories": [{"id": c, "name": catalog.MOVIE_CATEGORIES.get(c, c), "movies": out[c]} for c in out if out[c]]}
+
+
+def software_json():
+    oses = {}
+    for o, name in catalog.OS_NAMES.items():
+        apps = []
+        for app in catalog.SOFTWARE:
+            entry = app["os"].get(o)
+            try:
+                with open(os.path.join(catalog.SOFTWARE_DIR, o, app["id"], catalog.CHECKSUMS), encoding="utf-8") as fh:
+                    sums = json.load(fh)
+            except (OSError, ValueError):
+                sums = {}
+            files = []
+            for f in catalog.software_files(app, o):
+                info = sums.get(os.path.basename(f), {})
+                file_day = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(f)))
+                checked = info.get("checked") or file_day  # last time it was confirmed the newest release
+                age = int((time.time() - time.mktime(time.strptime(checked, "%Y-%m-%d"))) // 86400)
+                files.append({"name": os.path.basename(f), "url": file_url(f), "mb": round(os.path.getsize(f) / 1e6, 1),
+                              "sha256": info.get("sha256"), "verified": info.get("verified_by"),
+                              "downloaded": info.get("downloaded") or file_day, "checked": checked, "age_days": age,
+                              "stale": age > catalog.STALE_DAYS})
+            apps.append({k: app[k] for k in ("id", "name", "about", "license")} |
+                        {"files": files, "note": entry if isinstance(entry, str) else None,
+                         "variants": [] if isinstance(entry, str) else [label for label, _ in entry]})
+        oses[o] = {"name": name, "apps": apps}
+    return {"cmd": KIT_CMD, "os": oses, "stale_days": catalog.STALE_DAYS}
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=KIT, **kw)
@@ -97,6 +197,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if path == "/kjv.json":
             self.path = "/home/kjv.json"
             return super().do_GET()
+        pages = {"/books": "books.html", "/movies": "movies.html", "/movies/add": "movies-add.html",
+                 "/software": "software.html", "/media.css": "media.css", "/media.js": "media.js"}
+        if path.rstrip("/") in pages:
+            self.path = "/home/" + pages[path.rstrip("/")]
+            return super().do_GET()
+        if path in ("/books.json", "/movies.json", "/software.json"):
+            return self.send_json({"/books.json": books_json, "/movies.json": movies_json,
+                                   "/software.json": software_json}[path]())
+        if path.startswith("/files/"):
+            return self.send_file(path[len("/files/"):])
         if path == "/bible-info.json":
             zims = [f[:-4] for f in kitplatform.visible_files(os.path.join(KIT, "kiwix"), ".zim") if f.startswith("bible_")]
             return self.send_json({"zim": zims[-1] if zims else None})
@@ -105,6 +215,62 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         elif not path.startswith("/guides/") or ".." in path:
             return self.send_error(404)
         return super().do_GET()
+
+    def send_file(self, rel):
+        """A file from books/, audiobooks/, movies/ or software/, with Range support (video seeking, iOS)."""
+        parts = rel.split("/")
+        if parts[0] not in FILE_ROOTS or any(p in ("", ".", "..") or p.startswith(".") for p in parts):
+            return self.send_error(404)
+        path = os.path.join(KIT, *parts)
+        if not os.path.isfile(path):
+            return self.send_error(404)
+        size = os.path.getsize(path)
+        start, end = 0, size - 1
+        rng = self.headers.get("Range", "")
+        m = re.match(r"bytes=(\d*)-(\d*)$", rng.strip())
+        if m and (m.group(1) or m.group(2)):
+            if m.group(1):
+                start = int(m.group(1))
+                end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+            else:  # last N bytes
+                start = max(size - int(m.group(2)), 0)
+            if start > end or start >= size:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.end_headers()
+                return
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        else:
+            self.send_response(200)
+        ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
+        self.send_header("Content-Type", ctype)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        if parts[0] == "software" or "download" in self.path.partition("?")[2]:  # ?download: save, don't play
+            name = urllib.parse.quote(parts[-1])
+            self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{name}")
+        self.end_headers()
+        if self.command == "HEAD":
+            return
+        try:
+            with open(path, "rb") as f:
+                f.seek(start)
+                left = end - start + 1
+                while left > 0:
+                    chunk = f.read(min(1 << 20, left))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    left -= len(chunk)
+        except (ConnectionResetError, BrokenPipeError):
+            pass  # the player jumped elsewhere or the page closed
+
+    def do_HEAD(self):
+        path = urllib.parse.unquote(self.path.split("?", 1)[0])
+        if path.startswith("/files/"):
+            return self.send_file(path[len("/files/"):])
+        return super().do_HEAD()
 
     def send_json(self, obj, cors=False):
         body = json.dumps(obj).encode()

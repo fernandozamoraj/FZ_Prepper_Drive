@@ -1,5 +1,5 @@
-/* nav.js (offline prepper kit v1.13.3): the header bar on every page of the kit:
-   ⌂ Home (hub, port 8000) · Library (8080) · Bible (8000/bible) · Maps (8090).
+/* nav.js (offline prepper kit v1.14.0): the header bar on every page of the kit:
+   ⌂ Home (hub, port 8000) · Library (8080) · Bible (8000/bible) · Maps (8090) · Books · Movies · Software (8000/...).
    The library and map ports can move when another program has them: the hub's /ports.json says where they are,
    and window.fzKit (.lib, .maps, .hub, .ready) gives other page scripts the current addresses.
    Served as /nav.js by intranet.py, serve-maps.py and kiwix-serve (KIWIX_SERVE_CUSTOMIZED_RESOURCES,
@@ -22,7 +22,7 @@
   function current() {
     if (port === String(K.ports.maps)) return 'maps';
     if (port === String(K.ports.library)) return /^#bible_/.test(location.hash) ? 'bible' : 'library';
-    if (port === String(K.ports.hub)) return location.pathname.startsWith('/bible') ? 'bible' : 'home';
+    if (port === String(K.ports.hub)) return (location.pathname.match(/^\/(bible|books|movies|software)/) || [0, 'home'])[1];
     return '';
   }
 
@@ -60,7 +60,10 @@
       item('home', K.hub, '⌂', 'Home', 'fz-home') +
       item('library', K.lib, '📚', 'Library') +
       item('bible', K.hub + 'bible', '📖', 'Bible') +
-      item('maps', K.maps, '🗺️', 'Maps');
+      item('maps', K.maps, '🗺️', 'Maps') +
+      item('books', K.hub + 'books', '📕', 'Books') +
+      item('movies', K.hub + 'movies', '🎬', 'Movies') +
+      item('software', K.hub + 'software', '💾', 'Software');
     // Links open in this tab, never inside the library's content frame
     nav.querySelectorAll('a').forEach(a => a.target = '_top');
     document.body.insertBefore(nav, document.body.firstChild);
@@ -71,10 +74,12 @@
       nav.querySelectorAll('a[data-sec]').forEach(a =>
         a.dataset.sec === c ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
     });
-    nav.querySelectorAll('a').forEach((a, i) => a.dataset.sec = ['home', 'library', 'bible', 'maps'][i]);
+    const SECS = ['home', 'library', 'bible', 'maps', 'books', 'movies', 'software'];
+    nav.querySelectorAll('a').forEach((a, i) => a.dataset.sec = SECS[i]);
     // Once the hub says where everything runs, point the links there
     K.ready.then(() => {
-      const href = {home: K.hub, library: K.lib, bible: K.hub + 'bible', maps: K.maps}, c = current();
+      const href = {home: K.hub, library: K.lib, bible: K.hub + 'bible', maps: K.maps, books: K.hub + 'books',
+        movies: K.hub + 'movies', software: K.hub + 'software'}, c = current();
       nav.querySelectorAll('a[data-sec]').forEach(a => {
         a.href = href[a.dataset.sec];
         a.dataset.sec === c ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');

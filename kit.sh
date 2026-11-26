@@ -1,5 +1,5 @@
 #!/bin/bash
-# kit.sh (offline prepper kit v1.13.3): run a kit command on macOS. See README.md, or ./kit.sh --help
+# kit.sh (offline prepper kit v1.14.0): run a kit command on macOS. See README.md, or ./kit.sh --help
 #   ./kit.sh setup | download | build-map | build-routing | build-places | build-bible | build-all | all
 # Uses the kit's portable Python (runtime/); if it isn't there yet, downloads it first (~25 MB).
 set -euo pipefail

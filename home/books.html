@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Books and Audiobooks</title>
+<!-- Offline prepper kit v1.14.0: the optional Books module (bin/catalog.py, `kit books`), served by bin/intranet.py at /books -->
+<link rel="stylesheet" href="/media.css">
+<style>
+.player{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.player audio{width:100%}
+.player ol{margin:8px 0 0;padding-left:26px;max-height:220px;overflow:auto;font-size:14px}
+.player li{cursor:pointer;padding:2px 0}
+.player li.on{font-weight:700;color:var(--accent)}
+.chapters{margin:8px 0 0;padding-left:22px;columns:2 240px;font-size:14px}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<script src="/media.js"></script>
+<div class="wrap">
+  <h1>Books &amp; audiobooks</h1>
+  <p class="sub">Textbooks (math, nursing, science, programming, business, history) and classic novels, with LibriVox audiobooks.</p>
+  <div id="banner"></div>
+  <div class="toolbar">
+    <input id="q" type="search" placeholder="Filter: title, author or subject… e.g. calculus, Austen, nursing" aria-label="Filter books">
+    <label><input type="checkbox" id="only"> Only downloaded</label>
+  </div>
+  <div id="out"><p class="muted">Loading…</p></div>
+
+  <h2>Reading tips</h2>
+  <ul class="tips">
+    <li><b>PDF</b> opens right in the browser on any device.</li>
+    <li><b>EPUB</b>: on an iPhone or iPad, tap it and choose <b>Books</b>. On Android, tap it and open it with a reader app
+      (Google Play Books, ReadEra). On a Mac, the <b>Books</b> app opens it. On Windows, use <b>Thorium Reader</b>,
+      <b>SumatraPDF</b> or <b>Calibre</b> from the <a href="/software">Software</a> page.</li>
+    <li><b>Audiobooks</b> play here and keep going to the next part; this device remembers where you stopped.
+      Use <b>Download</b> on a part to keep it on a phone.</li>
+  </ul>
+  <footer>Books from OpenStax (CC BY-NC-SA), Project Gutenberg (public domain), Green Tea Press, opendatastructures.org,
+    the OSTEP authors, Pro Git and SICP (CC licenses) and Kiwix; audiobooks from LibriVox (public domain).
+    Each book's license is listed with it and in <code>books/ABOUT THESE BOOKS.txt</code>. Offline prepper kit v1.14.0</footer>
+</div>
+<script>
+const {esc, cmd, store, json, banner} = fzMedia;
+let DATA = null, LIB = `${location.protocol}//${location.hostname}:8080/`;
+if (window.fzKit) fzKit.ready.then(k => { LIB = k.lib; render(); });
+
+function bookRow(b, kit) {
+  const h = b.have, got = Object.keys(h).some(k => k !== 'audio');
+  const acts = [];
+  if (h.epub) acts.push(`<a class="btn primary" href="${esc(h.epub.url)}">EPUB <small>${h.epub.mb} MB</small></a>`);
+  if (h.pdf && !Array.isArray(h.pdf)) acts.push(`<a class="btn${h.epub ? '' : ' primary'}" href="${esc(h.pdf.url)}" target="_blank">PDF <small>${h.pdf.mb} MB</small></a>`);
+  if (h.library) acts.push(`<a class="btn primary" href="${esc(LIB)}viewer#${esc(h.library)}" target="_top">📚 Open in Library</a>`);
+  if (h.audio) acts.push(`<button class="btn" type="button" data-listen="${esc(b.id)}">🎧 Listen</button>`);
+  let more = '';
+  if (Array.isArray(h.pdf)) more += `<details><summary class="muted">${h.pdf.length} chapter PDFs</summary><ol class="chapters">` +
+    h.pdf.map(c => `<li><a href="${esc(c.url)}" target="_blank">${esc(c.name)}</a></li>`).join('') + '</ol></details>';
+  const need = [];
+  if (!got) need.push(`not downloaded: ${cmd(`${kit} books get ${b.id}`)}`);
+  if (b.audiobook && !h.audio) need.push(`audiobook: ${cmd(`${kit} books get ${b.id} --audio-only`)}`);
+  return `<div class="item${got || h.audio ? '' : ' missing'}" data-id="${esc(b.id)}" data-text="${esc((b.title + ' ' + b.author + ' ' + b.id).toLowerCase())}" data-have="${got || h.audio ? 1 : 0}">
+    <div class="row"><div class="t">${esc(b.title)} <small>· ${esc(b.author)}</small></div><div class="actions">${acts.join('')}</div></div>
+    ${more}${need.length ? `<div class="get">${need.join('<br>')}</div>` : ''}
+    <div class="get"><small>${esc(b.license)}</small></div><div class="player" hidden></div></div>`;
+}
+
+function render() {
+  if (!DATA) return;
+  const kit = DATA.cmd, all = DATA.categories.flatMap(c => c.books);
+  const n = all.filter(b => Object.keys(b.have).length).length;
+  document.getElementById('banner').innerHTML = n ? '' : banner('The Books module is not installed yet', [
+    'It is optional (not part of <i>install all</i>). On the computer that runs the kit, open a terminal in the kit folder and run:',
+    `${cmd(`${kit} books`)} a menu to pick categories or type keywords, or for example`,
+    `${cmd(`${kit} books get math nursing`)} ${cmd(`${kit} books get fiction --audio`)} ${cmd(`${kit} install books`)}`,
+    'Then reload this page. (On a Mac the command starts with <code>./kit.sh</code>; on Windows with <code>kit.bat</code>.)']);
+  const only = document.getElementById('only');
+  if (!render.done) { only.checked = n > 0; render.done = true; }
+  document.getElementById('out').innerHTML = DATA.categories.map(c => {
+    const got = c.books.filter(b => Object.keys(b.have).length).length;
+    return `<section data-cat><h2>${esc(c.name)} <small>${got} of ${c.books.length} downloaded · ${cmd(`${kit} books get ${c.id}`)}</small></h2>
+      <div class="list">${c.books.map(b => bookRow(b, kit)).join('')}</div></section>`;
+  }).join('');
+  filter();
+}
+
+function filter() {
+  const q = document.getElementById('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const only = document.getElementById('only').checked;
+  document.querySelectorAll('.item').forEach(el => el.hidden =
+    (only && el.dataset.have !== '1') || !q.every(w => el.dataset.text.includes(w) ||
+      el.closest('section').querySelector('h2').textContent.toLowerCase().includes(w)));
+  document.querySelectorAll('section[data-cat]').forEach(s => s.hidden = !s.querySelector('.item:not([hidden])'));
+}
+document.getElementById('q').addEventListener('input', filter);
+document.getElementById('only').addEventListener('change', filter);
+
+// Audiobook player: one <audio>, parts in order, remembers part + position per book on this device
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-listen]');
+  if (!btn) return;
+  const id = btn.dataset.listen, item = btn.closest('.item'), box = item.querySelector('.player');
+  if (!box.hidden) { box.querySelector('audio').pause(); box.hidden = true; return; }
+  const b = DATA.categories.flatMap(c => c.books).find(x => x.id === id), tracks = b.have.audio;
+  const saved = store.get('audio:' + id, {i: 0, t: 0});
+  box.innerHTML = `<audio controls preload="metadata"></audio><ol>${tracks.map((t, i) =>
+    `<li data-i="${i}">${esc(t.name)} <a class="muted" href="${esc(t.url)}?download" title="Download this part">⬇</a></li>`).join('')}</ol>`;
+  box.hidden = false;
+  const audio = box.querySelector('audio');
+  const play = (i, t = 0, go = true) => {
+    audio.src = tracks[i].url; audio.dataset.i = i;
+    box.querySelectorAll('li').forEach(li => li.classList.toggle('on', +li.dataset.i === i));
+    audio.addEventListener('loadedmetadata', () => { if (t) audio.currentTime = t; }, {once: true});
+    if (go) audio.play().catch(() => {});
+  };
+  box.querySelector('ol').addEventListener('click', ev => {
+    const li = ev.target.closest('li');
+    if (li && !ev.target.closest('a')) play(+li.dataset.i);
+  });
+  audio.addEventListener('ended', () => { const i = +audio.dataset.i + 1; if (i < tracks.length) play(i); });
+  audio.addEventListener('timeupdate', () => store.set('audio:' + id, {i: +audio.dataset.i, t: Math.floor(audio.currentTime)}));
+  play(Math.min(saved.i, tracks.length - 1), saved.t, false);
+});
+
+json('/books.json').then(d => { DATA = d; render(); })
+  .catch(() => document.getElementById('out').innerHTML = '<p class="muted">Could not load the book list.</p>');
+</script>
+</body>
+</html>

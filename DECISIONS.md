@@ -110,3 +110,53 @@
 - **Rejected:** a settings file with ports: relatives running from the drive would never edit it.
 - **Consequence:** If the library or map moves, links to it saved on phones break until the other program is gone;
   links through the Home page always work.
+
+## 2026-11-26: Books, movies and software are optional modules with a pick-list
+- **Chosen:** separate `books`, `movies`, `software` commands (menu, or `get` with categories/ids/keywords), never part of
+  `install all`. Everything already in the kit is about survival; these are large (books ~3.5 GB, audiobooks ~8 GB,
+  movies ~17 GB, software ~3.4 GB) and personal taste, so people choose.
+- One catalog (`bin/catalog.py`) feeds both the downloader and the hub pages, so a page can show what is missing and
+  the exact command to get it.
+
+## 2026-11-26: Resolve newest versions at download time, pin where items are messy
+- OpenStax books are found through openstax.org's CMS API (newest live edition of a slug): editions change and the PDF
+  file names carry random suffixes. Software comes from each project's latest release (GitHub API, VideoLAN and
+  libretro folders, Mozilla's "latest" redirect), so the center never ships stale installers.
+- Films are pinned to one file in each archive.org item: items often hold several cuts, split parts, trailers or
+  zero-byte placeholders, and an "MPEG4" original may not play in browsers. Pinned files use H.264 (or archive.org's
+  512 kbps H.264 derivative) so they stream everywhere; if a pinned file disappears the kit falls back to the item's
+  largest H.264 MP4. LibriVox audiobooks are pinned to the first full recording of each title.
+
+## 2026-11-26: Gutenberg mirrors and an honest user agent
+- gutenberg.org answers scripts with 503 and asks them to use mirrors, so EPUBs come from gutenberg.pglaf.org (then
+  aleph, then the main site). New modules send `offline-prepper-kit/<version>` as the user agent: some hosts refuse
+  the generic "Mozilla/5.0" the older downloads use. The older downloads keep theirs (no reason to change what works).
+
+## 2026-11-26: No in-browser EPUB reader
+- EPUBs open in the phone's own reader (iOS Books, Android apps) or Thorium/SumatraPDF/Calibre from the software
+  center; PDFs open in the browser. A bundled epub.js reader was left out to keep the hub small; worth adding if Windows
+  users without a reader find it awkward.
+
+## 2026-11-26: Byte-range file serving in the hub
+- Python's `SimpleHTTPRequestHandler` ignores `Range`, so videos couldn't seek and iPhones refused to play them.
+  `/files/...` is served by a small range-aware handler limited to `books/`, `audiobooks/`, `movies/`, `software/`.
+
+## 2026-11-26: Software only from official hosts, checked against publisher checksums
+- Fernando: no bloatware or malware. SourceForge (and portals like it) have wrapped installers in adware in the past,
+  and its MPlayer Windows builds are third-party uploads. **Chosen:** an allow-list of official hosts
+  (`TRUSTED_SOFTWARE_HOSTS` in `bin/catalog.py`): GitHub releases, VideoLAN, Mozilla, libretro's build server, the
+  SumatraPDF site. Any other resolved link is refused.
+- Where the publisher posts a sha256 (GitHub release digest, VideoLAN `.sha256`, Mozilla `SHA256SUMS`) the file must
+  match it, or it is deleted; the checksum is fetched from the publisher's main server, not the mirror that served the
+  file. If such a checksum can't be fetched, the download is skipped rather than kept unchecked.
+- SumatraPDF and RetroArch publish no checksums; they come over HTTPS from their own sites and are marked unverified.
+- **Rejected:** MPlayer for Windows from SourceForge. mpv (official GitHub releases, verified) covers that need.
+
+## 2026-11-26: Software updates from the terminal; the page only warns
+- `software update` / `software check` are terminal commands. The Software page can be opened by any phone on the
+  Wi-Fi, so it doesn't get a button that makes the kit download and replace installers; it shows the warning and the
+  command instead.
+- "Older than 4 months" counts from the last time the file was confirmed to be the newest release (`checked` in
+  `checksums.json`), not from its download date: a program that simply had no new release isn't flagged after an
+  update run.
+

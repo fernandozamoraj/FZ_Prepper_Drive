@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""kit.py (offline prepper kit v1.13.3): download and rebuild everything in the kit, on macOS or Windows.
+"""kit.py (offline prepper kit v1.14.0): download and rebuild everything in the kit, on macOS or Windows.
 
 Run it through the wrappers, which also fetch a portable Python the first time if needed:
     macOS:   ./kit.sh <command> [options]
@@ -12,6 +12,14 @@ Quick start:
     install maps   whole-US map, directions and town search (~20 GB kept, ~35 GB while building);
                    quick try with one state: install maps --state arkansas
     start          start the kit and open the Home page in the browser
+
+Optional modules (not part of install all; pick what you want, see README "Books, audiobooks, software"):
+    books          menu to choose books by category or keyword; or directly:
+                   books list [words]   /   books get math nursing dracula [--audio] [--format pdf]
+    software       menu to choose programs; or: software get vlc calibre [--os windows,mac,linux]
+                   software update   newest versions of what you have   /   software check   what's out of date
+    movies         menu to choose free films; or: movies get comedy nosferatu   /   movies add <archive.org link>
+    install books | install software | install movies    all of that module (books: add --audio for audiobooks)
 
 Single steps (each is safe to re-run; finished work is skipped and downloads resume):
     setup         programs the kit carries: portable Python/Java/kiwix-serve for Windows and Mac (runtime/),
@@ -40,13 +48,15 @@ import sys
 import tarfile
 import tempfile
 import time
+import urllib.parse
 import zipfile
 
-VERSION = "1.13.3"
+VERSION = "1.14.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(KIT, "bin"))  # kitplatform (python -I leaves script dirs out of sys.path)
 import kitplatform  # noqa: E402
+import catalog  # noqa: E402  (books, audiobooks, software: bin/catalog.py)
 
 WINDOWS = sys.platform == "win32"
 LOG = os.path.join(KIT, "download.log")  # serve.sh reads "OK  <file>" lines from here
@@ -92,6 +102,8 @@ ZIM_SETS = {
 STATES = ["texas", "new-mexico", "oklahoma", "arkansas", "louisiana", "california", "oregon", "nevada",
           "arizona", "alabama", "mississippi", "illinois", "indiana", "ohio"]
 UA = "Mozilla/5.0"
+KIT_UA = f"offline-prepper-kit/{VERSION} (+https://github.com/fernandozamoraj/FZ_Prepper_Drive)"  # books, software:
+# an honest name (some hosts refuse the fake browser one, Gutenberg asks scripts to say who they are)
 PDFS = [  # (url, topic folder, file name)
     ("https://www.sjsu.edu/people/michelle.hager/docs/fm_21-76_us_army_survival_manual_2006.pdf", "survival",
      "FM-21-76-Army-Survival-Manual.pdf"),
@@ -141,13 +153,14 @@ def curl():
     return exe
 
 
-def fetch_text(url):
-    r = subprocess.run([curl(), "-sfL", "-A", UA, url], capture_output=True)
+def fetch_text(url, ua=UA):
+    r = subprocess.run([curl(), "-sfL", "--connect-timeout", "30", "-m", "180", "-A", ua, url], capture_output=True)
     return r.stdout.decode("utf-8", "replace") if r.returncode == 0 else None
 
 
-def remote_size(url):
-    r = subprocess.run([curl(), "-sIL", "-A", UA, url], capture_output=True)
+def remote_size(url, ua=UA):
+    # a server that never answers HEAD (a hung mirror) must not stall the download: give up after 60 s
+    r = subprocess.run([curl(), "-sIL", "--connect-timeout", "30", "-m", "60", "-A", ua, url], capture_output=True)
     if r.returncode != 0:
         return None
     sizes = re.findall(rb"(?im)^content-length:\s*(\d+)", r.stdout)
@@ -164,11 +177,11 @@ def size_of(path):
         return -1
 
 
-def get(url, dest, tries=5, quiet=False):
+def get(url, dest, tries=5, quiet=False, ua=UA):
     """Resumable download to dest (via dest.part). Skips a file that's already complete. Returns True if OK."""
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     name = os.path.basename(dest)
-    remote = remote_size(url)
+    remote = remote_size(url, ua)
     if os.path.exists(dest) and (remote in (None, 0) or size_of(dest) == remote):
         if not quiet:
             say(f"OK  {name} (complete)")
@@ -181,7 +194,9 @@ def get(url, dest, tries=5, quiet=False):
             break
         say(f"GET {name} (try {n}, have {max(size_of(part), 0)} of {remote or '?'} bytes)")
         progress = ["--progress-bar"] if sys.stdout.isatty() else ["-sS"]
-        rc = subprocess.call([curl(), "-fL", "-A", UA, "--retry", "5", "--retry-delay", "10", "-C", "-",
+        # --speed-limit/--speed-time: a stalled connection (a hung mirror) is dropped after 60 s and resumed
+        rc = subprocess.call([curl(), "-fL", "-A", ua, "--retry", "5", "--retry-delay", "10", "-C", "-",
+                              "--connect-timeout", "30", "--speed-limit", "1000", "--speed-time", "60",
                               *progress, "-o", part, url])
         if rc == 0 and not remote:
             break
@@ -634,12 +649,26 @@ def cmd_build_all(a):
 
 
 def cmd_all(a):
-    cmd_install(argparse.Namespace(what="all", platform="all", only=None, state=None))
+    cmd_install(argparse.Namespace(what="all", platform="all", only=None, state=None, words=None))
 
 
 def cmd_install(a):
     """Quick-start bundles: all, wiki (library + Bible) or maps (map + directions + town search).
-    Each step is named in the window and the log; if one stops, it says which and how to carry on."""
+    Each step is named in the window and the log; if one stops, it says which and how to carry on.
+    books, software and movies are the optional modules (never part of all)."""
+    if a.what in ("books", "software", "movies"):
+        words = getattr(a, "words", None) or ["all"]
+        if a.what == "books":
+            fails = books_get(catalog.pick(catalog.BOOKS, words, catalog.BOOK_FIELDS)[0], audio=a.audio)
+        elif a.what == "software":
+            fails = software_get(catalog.pick(catalog.SOFTWARE, words, catalog.SOFTWARE_FIELDS)[0], os_list(a.os))
+        else:
+            fails = movies_get(catalog.pick(catalog.all_movies(), words, catalog.MOVIE_FIELDS)[0])
+        say(f"=== install {a.what} done. It shows on the Home page ({kit_cmd()} start) ===")
+        if fails:
+            say(f"NOTE: {fails} download(s) failed; run the same command again to retry them.")
+            sys.exit(2)
+        return
     plat = a.platform or ("all" if a.what == "all" else "current")
     again = f"{'kit.bat' if WINDOWS else './kit.sh'} install {a.what}" + \
         (f" --only {a.only}" if a.only else "") + (f" --state {a.state}" if a.state else "")
@@ -699,6 +728,729 @@ def cmd_start(a):
         pass
 
 
+# ==== books, audiobooks, software (optional modules) =====================================================
+GUTENBERG_MIRRORS = ["https://gutenberg.pglaf.org", "https://aleph.gutenberg.org", "https://www.gutenberg.org"]
+OPENSTAX_API = ("https://openstax.org/apps/cms/api/v2/pages/?type=books.Book&limit=250"
+                "&fields=title,book_state,high_resolution_pdf_url,license_name,license_version")
+_cache = {}
+
+
+def kit_cmd():
+    return "kit.bat" if WINDOWS else "./kit.sh"
+
+
+def looks_like(path, fmt):
+    """A real EPUB (zip) / PDF / MP3, not an error page saved under that name."""
+    magic = {"epub": (b"PK",), "pdf": (b"%PDF",), "mp3": (b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xf2")}.get(fmt)
+    if not magic:
+        return True
+    try:
+        with open(path, "rb") as f:
+            head = f.read(4)
+    except OSError:
+        return False
+    return any(head.startswith(m) for m in magic)
+
+
+def fetch_checked(url, dest, fmt, quiet=False):
+    """get() plus a format check; a wrong file is deleted so the next run tries again."""
+    if os.path.isfile(dest) and looks_like(dest, fmt):
+        if not quiet:
+            say(f"OK  {os.path.basename(dest)} (have it)")
+        return True
+    if not get(url, dest, tries=3, quiet=quiet, ua=KIT_UA):
+        return False
+    if looks_like(dest, fmt):
+        return True
+    os.remove(dest)
+    say(f"FAIL {os.path.basename(dest)}: the server sent something that isn't a {fmt.upper()} <- {url}")
+    return False
+
+
+def openstax_book(slug):
+    """(pdf url, title with edition, license) of the newest live edition: slug, slug-2e, slug-3e..."""
+    if "openstax" not in _cache:
+        _cache["openstax"] = json.loads(fetch_text(OPENSTAX_API, KIT_UA) or '{"items": []}')["items"]
+    pat = re.compile("^" + re.escape(slug) + r"(?:-(\d+)e)?$")
+    hits = []
+    for b in _cache["openstax"]:
+        m = pat.match(b["meta"]["slug"])
+        if m and b.get("high_resolution_pdf_url") and b.get("book_state") in ("live", "deprecated", "retired"):
+            hits.append(((b["book_state"] == "live", int(m.group(1) or 1)), b))
+    if not hits:
+        return None, None, None
+    b = max(hits, key=lambda h: h[0])[1]
+    return b["high_resolution_pdf_url"], b["title"], f"{b.get('license_name')} {b.get('license_version') or ''}".strip()
+
+
+def get_book_text(b, fmt):
+    dest = catalog.book_file(b, fmt)
+    if b.get("openstax"):
+        url, title, lic = openstax_book(b["openstax"])
+        if not url:
+            say(f"FAIL {b['id']}: OpenStax has no PDF for {b['openstax']!r} (check {OPENSTAX_API.split('?')[0]})")
+            return False
+        say(f"    {b['id']}: {title} (OpenStax, {lic})")
+        return fetch_checked(url, dest, "pdf")
+    if b.get("gutenberg"):
+        n = b["gutenberg"]
+        # Gutenberg asks scripts to use mirrors (its main site answers them with 503). Illustrated EPUB 3 first
+        # (Treasure Island 49 MB, Monte Cristo 85 MB), the plain text-only EPUB if that fails.
+        for mirror in GUTENBERG_MIRRORS:
+            for name in (f"pg{n}-images-3.epub", f"pg{n}.epub"):
+                if fetch_checked(f"{mirror}/cache/epub/{n}/{name}", dest, "epub"):
+                    return True
+            time.sleep(2)
+        return False
+    if b.get("pdf_index"):  # one PDF per chapter: books/<cat>/<Title - Author>/<chapter>.pdf
+        page, pat = b["pdf_index"]
+        if os.path.isfile(os.path.join(dest, catalog.DONE)):
+            say(f"OK  {os.path.basename(dest)}/ (have it)")
+            return True
+        html = fetch_text(page, KIT_UA)
+        chapters = {}  # file -> "04 Processes.pdf" (numbered chapters sort in book order)
+        for num, fname, title in re.findall(pat, html or ""):
+            title = catalog.safe(re.sub(r"\s+", " ", title)) or fname[:-4]
+            chapters.setdefault(fname, f"{int(num):02d} {title}.pdf" if num else fname)  # titles of extras repeat
+        if not chapters:
+            say(f"FAIL {b['id']}: no chapter PDFs found on {page}")
+            return False
+        say(f"    {b['id']}: {len(chapters)} chapter PDFs from {page}")
+        fails = 0
+        for fname, local in chapters.items():
+            print(f"    {local}", flush=True)
+            fails += not fetch_checked(urllib.parse.urljoin(page, fname), os.path.join(dest, local), "pdf", quiet=True)
+        names = chapters
+        if fails:
+            say(f"FAIL {b['id']}: {fails} of {len(names)} chapters (run again to retry)")
+            return False
+        with open(os.path.join(dest, catalog.DONE), "w") as f:
+            f.write(f"{len(names)} chapters from {page}\n")
+        say(f"OK  {os.path.basename(dest)}/ ({len(names)} chapters)")
+        return True
+    return fetch_checked(b["files"][fmt], dest, fmt)
+
+
+def get_audiobook(b):
+    """LibriVox recording: every 64 kbps MP3 of the archive.org item, into audiobooks/<cat>/<Title - Author>/."""
+    ident, folder = b["librivox"], catalog.audio_dir(b)
+    if os.path.isfile(os.path.join(folder, catalog.DONE)):
+        say(f"OK  audiobook {b['title']} (have it)")
+        return True
+    meta = json.loads(fetch_text(f"https://archive.org/metadata/{ident}", KIT_UA) or "{}")
+    tracks = sorted((f for f in meta.get("files", []) if f.get("format") == "64Kbps MP3"), key=lambda f: f["name"])
+    if not tracks:
+        say(f"FAIL audiobook {b['title']}: no MP3s in archive.org item {ident}")
+        return False
+    mb = sum(int(t.get("size", 0)) for t in tracks) / 1e6
+    say(f"GET audiobook {b['title']}: {len(tracks)} parts, {mb:,.0f} MB (LibriVox, public domain)")
+    fails = 0
+    for n, t in enumerate(tracks, 1):
+        dest = os.path.join(folder, t["name"])
+        if not (size_of(dest) == int(t.get("size", -2)) and looks_like(dest, "mp3")):
+            print(f"    part {n} of {len(tracks)}: {t['name']}", flush=True)
+            fails += not fetch_checked(f"https://archive.org/download/{ident}/{urllib.parse.quote(t['name'])}",
+                                       dest, "mp3", quiet=True)
+    if fails:
+        say(f"FAIL audiobook {b['title']}: {fails} of {len(tracks)} parts (run again to retry)")
+        return False
+    with open(os.path.join(folder, catalog.TRACKS), "w", encoding="utf-8") as f:  # chapter titles for the player
+        json.dump({t["name"]: t.get("title") or "" for t in tracks}, f, indent=0, ensure_ascii=False)
+    with open(os.path.join(folder, catalog.DONE), "w", encoding="utf-8") as f:
+        f.write(f"{b['title']} by {b['author']}, read by LibriVox volunteers (public domain).\n"
+                f"https://archive.org/details/{ident}\n")
+    say(f"OK  audiobook {b['title']} ({len(tracks)} parts, {mb:,.0f} MB)")
+    return True
+
+
+def write_book_notes():
+    """books/ABOUT THESE BOOKS.txt: where each book came from and its license (most licenses ask for this)."""
+    lines = ["Books and audiobooks in this kit: source and license of each.",
+             "Fetched with the kit's `books` command (bin/catalog.py lists them all).", ""]
+    for b in catalog.BOOKS:
+        have = catalog.book_status(b)
+        if have:
+            src = ("OpenStax (openstax.org)" if b.get("openstax") else f"Project Gutenberg #{b['gutenberg']}"
+                   if b.get("gutenberg") else "Kiwix library" if b.get("zim") else
+                   (b.get("files") or {}).get("epub") or (b.get("files") or {}).get("pdf") or b["pdf_index"][0])
+            lines.append(f"- {b['title']} by {b['author']} [{', '.join(have)}]\n    source: {src}\n"
+                         f"    license: {b['license']}" +
+                         (f"\n    audiobook: LibriVox, public domain, https://archive.org/details/{b['librivox']}"
+                          if "audio" in have else ""))
+    os.makedirs(catalog.BOOKS_DIR, exist_ok=True)
+    with open(os.path.join(catalog.BOOKS_DIR, "ABOUT THESE BOOKS.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def books_get(books, fmt="epub", audio=False, audio_only=False, dry_run=False):
+    pref = {"epub": ["epub", "pdf"], "pdf": ["pdf", "epub"]}
+    say(f"=== books v{VERSION}: {len(books)} book(s), format {fmt}"
+        f"{', with audiobooks' if audio else ', audiobooks only' if audio_only else ''} ===")
+    fails = 0
+    for n, b in enumerate(books, 1):
+        avail = catalog.formats_of(b)
+        want = avail if fmt == "both" else [f for f in pref[fmt] if f in avail][:1] or avail[:1]
+        print(f"--- {n}/{len(books)} {b['title']} ({b['author']}): "
+              f"{'' if audio_only else '/'.join(want)}{' + audiobook' if (audio or audio_only) and b.get('librivox') else ''}",
+              flush=True)
+        if dry_run:
+            continue
+        if not audio_only:
+            for f in want:
+                if f == "library":
+                    fails += not download_zim(*b["zim"], update=False)
+                else:
+                    fails += not get_book_text(b, f)
+        if (audio or audio_only) and b.get("librivox"):
+            fails += not get_audiobook(b)
+        elif audio_only:
+            print("    (no audiobook for this one)")
+    if not dry_run:
+        write_book_notes()
+    say(f"=== books done, {fails} failed ===" if not dry_run else "=== dry run: nothing downloaded ===")
+    if not dry_run and any(b.get("zim") for b in books) and not audio_only:
+        print("Note: a book that is a Library (the Rust book) shows up after the kit is restarted.")
+    return fails
+
+
+def print_books(books):
+    cat = None
+    for b in books:
+        if b["cat"] != cat:
+            cat = b["cat"]
+            print(f"\n{catalog.CATEGORIES[cat][0]}  (category: {cat})")
+        have = catalog.book_status(b)
+        fm = "/".join(f.upper() if f != "library" else "Library" for f in catalog.formats_of(b))
+        mark = "✓" if any(k != "audio" for k in have) else " "
+        audio = ("  🎧 have audiobook" if "audio" in have else "  🎧 audiobook available") if b.get("librivox") else ""
+        print(f"  {mark} {b['id']:<26} {b['title']} - {b['author']}  [{fm}]{audio}")
+    print("\n✓ = downloaded.  Get some with e.g.:  " + kit_cmd() + " books get calculus-1 nursing dracula")
+
+
+def menu(prompt):
+    try:
+        return input(prompt).strip()
+    except EOFError:
+        return ""
+
+
+def menu_words(ans, numbers, items, fields):
+    """Words typed at a menu: numbers pick menu lines; other words are grouped into the longest phrases that
+    match something ("nursing think python" = nursing + think python). Commas always separate."""
+    words = []
+    for piece in ans.split(","):
+        phrase = []
+        for tok in piece.split() + [","]:
+            if tok.isdigit() or tok == ",":
+                i = 0
+                while i < len(phrase):  # longest run of words that some item matches, left to right
+                    j = next((j for j in range(len(phrase), i, -1)
+                              if catalog.pick(items, [" ".join(phrase[i:j])], fields)[0]), i + 1)
+                    words.append(" ".join(phrase[i:j]))
+                    i = j
+                phrase = []
+                if tok != ",":
+                    words.append(numbers.get(int(tok), tok))
+            else:
+                phrase.append(tok)
+    return words
+
+
+def books_menu():
+    cats = list(catalog.CATEGORIES)
+    print("\nBooks and audiobooks (optional: not part of install all)\n")
+    for n, c in enumerate(cats, 1):
+        items = [b for b in catalog.BOOKS if b["cat"] == c]
+        got = sum(bool(catalog.book_status(b)) for b in items)
+        print(f"  {n:>2}  {catalog.CATEGORIES[c][0]:<38} {len(items):>2} books" + (f", {got} downloaded" if got else ""))
+    extra = {str(len(cats) + 1): "textbooks", str(len(cats) + 2): "fiction", str(len(cats) + 3): "all"}
+    print(f"  {len(cats) + 1:>2}  All textbooks (about 3.4 GB)\n  {len(cats) + 2:>2}  All fiction (small; their audiobooks"
+          f" are about 8 GB)\n  {len(cats) + 3:>2}  Everything")
+    print("\nType numbers, category names, book ids or keywords,")
+    print("e.g.  1 3 dracula   or   nursing think python   ('list' shows every book; Enter alone cancels)")
+    while True:
+        ans = menu("> ")
+        if not ans:
+            print("Nothing chosen.")
+            return
+        if ans.lower() == "list":
+            print_books(catalog.BOOKS)
+            continue
+        numbers = {n: c for n, c in enumerate(cats, 1)} | {int(k): v for k, v in extra.items()}
+        words = menu_words(ans, numbers, catalog.BOOKS, catalog.BOOK_FIELDS)
+        books, unknown = catalog.pick(catalog.BOOKS, words, catalog.BOOK_FIELDS)
+        if unknown:
+            print(f"Nothing matches: {', '.join(unknown)}")
+        if books:
+            break
+    print_books(books)
+    with_audio = any(b.get("librivox") for b in books) and \
+        menu("\nAlso get the audiobooks for these (MP3, about 100 MB to 1.4 GB each)? [y/N] ").lower().startswith("y")
+    if not menu(f"Download {len(books)} book(s) now? [Y/n] ").lower().startswith("n"):
+        sys.exit(2 if books_get(books, audio=with_audio) else 0)
+
+
+def cmd_books(a):
+    if a.action is None:
+        if not sys.stdin.isatty():
+            die(f"say what to get, e.g. {kit_cmd()} books get math   (or {kit_cmd()} books list)")
+        return books_menu()
+    books, unknown = catalog.pick(catalog.BOOKS, a.words or ["all"], catalog.BOOK_FIELDS)
+    if unknown:
+        print(f"Nothing matches: {', '.join(unknown)}. Categories: {', '.join(catalog.CATEGORIES)}; "
+              f"groups: {', '.join(catalog.GROUPS)}, all. `{kit_cmd()} books list` shows every book.")
+    if a.action == "list":
+        return print_books(books)
+    if not a.words:
+        die(f"say which books, e.g. {kit_cmd()} books get math dracula   (or: books get all)")
+    if not books:
+        sys.exit(1)
+    if books_get(books, a.format, a.audio, a.audio_only, a.dry_run):
+        say("Some downloads failed (FAIL lines above). Run the same command again to retry them.")
+        sys.exit(2)
+
+
+# ---- software ----
+def github_release(repo):
+    key = "gh:" + repo
+    if key not in _cache:
+        hdr = ["-H", f"Authorization: Bearer {os.environ['GITHUB_TOKEN']}"] if os.environ.get("GITHUB_TOKEN") else []
+        r = subprocess.run([curl(), "-sfL", "-A", KIT_UA, *hdr, f"https://api.github.com/repos/{repo}/releases/latest"],
+                           capture_output=True)
+        _cache[key] = json.loads(r.stdout or b"{}") if r.returncode == 0 else {}
+    return _cache[key]
+
+
+def publisher_sha256(url, name):
+    """(sha256, where it came from) from the publisher's own checksum file, for hosts that post one; else (None, None).
+    Fetched from the publisher's main server, not the mirror the file itself may come from."""
+    if url.startswith("https://get.videolan.org/vlc/"):  # VideoLAN: <file>.sha256 next to each file
+        sums = fetch_text(url.replace("https://get.videolan.org/vlc/", "https://download.videolan.org/pub/videolan/vlc/")
+                          + ".sha256", KIT_UA) or ""
+        m = re.match(r"([0-9a-f]{64})\s", sums)
+        return (m.group(1), "videolan.org .sha256") if m else (None, "videolan.org .sha256 (missing)")
+    m = re.match(r"https://download-installer\.cdn\.mozilla\.net/pub/firefox/releases/([^/]+)/(.+)$", url)
+    if m:  # Mozilla: one SHA256SUMS per release on archive.mozilla.org
+        sums = fetch_text(f"https://archive.mozilla.org/pub/firefox/releases/{m.group(1)}/SHA256SUMS", KIT_UA) or ""
+        rel = urllib.parse.unquote(m.group(2))
+        hit = re.search(r"(?m)^([0-9a-f]{64})\s+" + re.escape(rel) + "$", sums)
+        return (hit.group(1), "mozilla.org SHA256SUMS") if hit else (None, "mozilla.org SHA256SUMS (missing)")
+    return None, None
+
+
+def resolve(how):
+    """(url, file name, sha256 or None, where the checksum came from) of the newest download,
+    or (None, reason, None, None)."""
+    kind = how[0]
+    if kind == "github":
+        rel = github_release(how[1])
+        if not rel:
+            return None, f"GitHub didn't answer for {how[1]} (rate limit? set GITHUB_TOKEN, or wait an hour)", None, None
+        for asset in rel.get("assets", []):
+            if re.fullmatch(how[2], asset["name"]):
+                d = asset.get("digest") or ""
+                return (asset["browser_download_url"], asset["name"], d[7:] if d.startswith("sha256:") else None,
+                        "GitHub release checksum" if d.startswith("sha256:") else None)
+        return None, f"no file like {how[2]} in {how[1]} {rel.get('tag_name')}", None, None
+    if kind == "github-tag":
+        rel = github_release(how[1])
+        if not rel.get("tag_name"):
+            return None, f"GitHub didn't answer for {how[1]}", None, None
+        url = how[2].format(v=rel["tag_name"].lstrip("v"))
+        name = os.path.basename(url)
+    elif kind == "page":
+        m = re.search(how[2], fetch_text(how[1], KIT_UA) or "")
+        if not m:
+            return None, f"no link like {how[2]} on {how[1]}", None, None
+        url = urllib.parse.urljoin(how[1], m.group(0))
+        name = os.path.basename(url)
+    elif kind == "redirect":
+        r = subprocess.run([curl(), "-sIL", "--connect-timeout", "30", "-m", "60", "-A", KIT_UA, "-o", os.devnull,
+                            "-w", "%{url_effective}", how[1]], capture_output=True)
+        url = r.stdout.decode().strip()
+        if r.returncode != 0 or not url or url == how[1]:
+            return None, f"{how[1]} didn't forward to a file", None, None
+        name = urllib.parse.unquote(os.path.basename(urllib.parse.urlparse(url).path))
+    else:
+        return None, f"unknown source type {kind}", None, None
+    digest, where = publisher_sha256(url, name)
+    if where and not digest:
+        return None, f"the publisher's checksum for {name} wasn't found ({where}); not downloading it unchecked", None, None
+    return url, name, digest, where
+
+
+def trusted(url):
+    host = (urllib.parse.urlparse(url).hostname or "").lower()
+    return urllib.parse.urlparse(url).scheme == "https" and \
+        any(host == h or host.endswith("." + h) for h in catalog.TRUSTED_SOFTWARE_HOSTS)
+
+
+def software_get(apps, oses, dry_run=False, only_present=False):
+    """Official releases only: the link must be on the program's own host (catalog.TRUSTED_SOFTWARE_HOSTS), and the
+    file must match the publisher's checksum when the publisher posts one (GitHub, VideoLAN, Mozilla).
+    only_present: just the programs/systems already downloaded (`software update`)."""
+    say(f"=== software v{VERSION}: {', '.join(a['name'] for a in apps)} for {', '.join(oses)} ===")
+    fails = 0
+    today = time.strftime("%Y-%m-%d")
+    for app in apps:
+        for o in oses:
+            entry = app["os"].get(o)
+            if only_present and not catalog.software_files(app, o):
+                continue
+            if isinstance(entry, str) or not entry:
+                print(f"--- {app['name']} for {catalog.OS_NAMES[o]}: no download. {entry or ''}")
+                continue
+            folder = os.path.join(catalog.SOFTWARE_DIR, o, app["id"])
+            keep, record = [], {}
+            old = {}
+            try:
+                with open(os.path.join(folder, catalog.CHECKSUMS), encoding="utf-8") as f:
+                    old = json.load(f)
+            except (OSError, ValueError):
+                pass
+            for label, how in entry:
+                url, name, digest, where = resolve(how)
+                print(f"--- {app['name']} for {catalog.OS_NAMES[o]} ({label}): {name}", flush=True)
+                if not url:
+                    say(f"FAIL {app['id']} {o}: {name}")
+                    fails += 1
+                    continue
+                if not dry_run and os.path.exists(os.path.join(folder, name)):
+                    print("    (you have this version)")
+                if not trusted(url):
+                    say(f"FAIL {app['id']} {o}: {url} is not the program's official download site; skipped")
+                    fails += 1
+                    continue
+                print(f"    {url}\n    checksum: {'sha256 from ' + where if digest else 'none published (official site, HTTPS)'}")
+                if dry_run:
+                    continue
+                dest = os.path.join(folder, name)
+                if not get(url, dest, tries=3, ua=KIT_UA):
+                    fails += 1
+                    continue
+                if digest and sha256(dest) != digest:
+                    os.remove(dest)
+                    say(f"FAIL {name}: doesn't match the publisher's checksum ({where}); deleted")
+                    fails += 1
+                    continue
+                if digest:
+                    say(f"    checksum OK ({where})")
+                keep.append(name)
+                record[name] = {"url": url, "sha256": digest or sha256(dest), "verified_by": where,
+                                # downloaded: when this version arrived; checked: last time it was the newest release
+                                "downloaded": old.get(name, {}).get("downloaded") or today, "checked": today}
+            if keep and len(keep) == len(entry):  # everything new is here: remove older versions
+                for old_file in catalog.visible(folder):
+                    if old_file not in keep and not old_file.endswith((".part", ".json")):
+                        say(f"    removing older {old_file}")
+                        os.remove(os.path.join(folder, old_file))
+            if record:
+                with open(os.path.join(folder, catalog.CHECKSUMS), "w", encoding="utf-8") as f:
+                    json.dump({k: v for k, v in (old | record).items() if os.path.exists(os.path.join(folder, k))},
+                              f, indent=1)
+    say(f"=== software done, {fails} failed ===" if not dry_run else "=== dry run: nothing downloaded ===")
+    return fails
+
+
+def software_age_days(app, o):
+    """Days since this program was last confirmed up to date (checksums.json 'checked', else the file's date)."""
+    folder = os.path.join(catalog.SOFTWARE_DIR, o, app["id"])
+    files = catalog.software_files(app, o)
+    if not files:
+        return None
+    try:
+        with open(os.path.join(folder, catalog.CHECKSUMS), encoding="utf-8") as f:
+            sums = json.load(f)
+        dates = [sums[os.path.basename(p)]["checked"] for p in files]
+        return min((time.time() - time.mktime(time.strptime(d, "%Y-%m-%d"))) // 86400 for d in dates)
+    except (OSError, ValueError, KeyError):
+        return min((time.time() - os.path.getmtime(p)) // 86400 for p in files)
+
+
+def software_check(apps, oses):
+    """Which downloaded programs have a newer release (asks each publisher; downloads nothing)."""
+    print(f"Checking for newer versions of what you have (programs older than {catalog.STALE_DAYS} days "
+          f"since their last check are marked):")
+    behind = 0
+    for app in apps:
+        for o in oses:
+            files = [os.path.basename(p) for p in catalog.software_files(app, o)]
+            entry = app["os"].get(o)
+            if not files or isinstance(entry, str):
+                continue
+            newest = [resolve(how)[1] for _, how in entry]
+            age = software_age_days(app, o)
+            new = [n for n in newest if n not in files]
+            behind += bool(new)
+            print(f"  {'NEWER ' if new else 'ok    '}{app['name']} for {catalog.OS_NAMES[o]}: have {', '.join(files)}"
+                  + (f"; newest {', '.join(new)}" if new else "")
+                  + (f"  (last checked {int(age)} days ago)" if age is not None and age > catalog.STALE_DAYS else ""))
+    print(f"\n{behind} out of date." + (f" Update them with:  {kit_cmd()} software update" if behind else ""))
+    return behind
+
+
+def os_list(value):
+    if value in (None, "all"):
+        return list(catalog.OS_NAMES)
+    if value == "current":
+        return ["windows" if WINDOWS else "mac" if sys.platform == "darwin" else "linux"]
+    out = [{"win": "windows", "macos": "mac", "osx": "mac"}.get(o.strip().lower(), o.strip().lower())
+           for o in value.split(",")]
+    for o in out:
+        o in catalog.OS_NAMES or die(f"unknown OS {o!r} (use windows, mac, linux, current or all)")
+    return out
+
+
+def print_software(apps, oses):
+    for app in apps:
+        print(f"\n  {app['id']:<11} {app['name']}: {app['about']}")
+        for o in oses:
+            entry = app["os"].get(o)
+            files = catalog.software_files(app, o)
+            if isinstance(entry, str):
+                print(f"      {catalog.OS_NAMES[o]:<8} - {entry}")
+            else:
+                got = ", ".join(os.path.basename(f) for f in files)
+                print(f"      {catalog.OS_NAMES[o]:<8} {'✓ ' + got if files else '  ' + ', '.join(l for l, _ in entry)}")
+    print(f"\n✓ = downloaded.  Get some with e.g.:  {kit_cmd()} software get vlc calibre --os windows,mac")
+
+
+def software_menu(oses):
+    apps = catalog.SOFTWARE
+    print("\nSoftware for the kit's download center (optional: not part of install all)\n")
+    for n, app in enumerate(apps, 1):
+        got = [catalog.OS_NAMES[o] for o in catalog.OS_NAMES if catalog.software_files(app, o)]
+        print(f"  {n:>2}  {app['name']:<18} {app['about'][:70]}" + (f"  [have: {', '.join(got)}]" if got else ""))
+    print(f"  {len(apps) + 1:>2}  All of them")
+    ans = menu("\nType numbers or names (e.g. 1 4 6, or vlc calibre); Enter alone cancels\n> ")
+    if not ans:
+        print("Nothing chosen.")
+        return
+    numbers = {n: app["id"] for n, app in enumerate(apps, 1)} | {len(apps) + 1: "all"}
+    words = menu_words(ans, numbers, apps, catalog.SOFTWARE_FIELDS)
+    chosen, unknown = catalog.pick(apps, words, catalog.SOFTWARE_FIELDS)
+    if unknown:
+        print(f"Nothing matches: {', '.join(unknown)}")
+    if not chosen:
+        return
+    o = menu("For which computers? 1 Windows  2 Mac  3 Linux  4 all three  (Enter = all three) > ")
+    oses = [list(catalog.OS_NAMES)[int(x) - 1] for x in re.findall(r"[1-3]", o)] or list(catalog.OS_NAMES)
+    sys.exit(2 if software_get(chosen, oses) else 0)
+
+
+def cmd_software(a):
+    oses = os_list(a.os)
+    if a.action in ("update", "check"):
+        apps = catalog.pick(catalog.SOFTWARE, a.words or ["all"], catalog.SOFTWARE_FIELDS)[0]
+        if not any(catalog.software_files(x, o) for x in apps for o in oses):
+            die(f"no software downloaded yet; get some first, e.g. {kit_cmd()} software get vlc")
+        if a.action == "check":
+            return software_check(apps, oses)
+        if software_get(apps, oses, a.dry_run, only_present=True):
+            say("Some updates failed (FAIL lines above). Run the same command again to retry them.")
+            sys.exit(2)
+        return
+    if a.action is None:
+        if not sys.stdin.isatty():
+            die(f"say what to get, e.g. {kit_cmd()} software get vlc   (or {kit_cmd()} software list)")
+        return software_menu(oses)
+    apps, unknown = catalog.pick(catalog.SOFTWARE, a.words or ["all"], catalog.SOFTWARE_FIELDS)
+    if unknown:
+        print(f"Nothing matches: {', '.join(unknown)}. Programs: {', '.join(x['id'] for x in catalog.SOFTWARE)}, all")
+    if a.action == "list":
+        return print_software(apps, oses)
+    if not a.words:
+        die(f"say which programs, e.g. {kit_cmd()} software get vlc calibre   (or: software get all)")
+    if not apps:
+        sys.exit(1)
+    if software_get(apps, oses, a.dry_run):
+        say("Some downloads failed (FAIL lines above). Run the same command again to retry them.")
+        sys.exit(2)
+
+
+# ---- movies ----
+IA_VIDEO_PREF = ["h.264", "h.264 IA", "512Kb MPEG4", "MPEG4", "h.264 MPEG4"]  # H.264 first: plays in every browser
+
+
+def ia_metadata(ident):
+    key = "ia:" + ident
+    if key not in _cache:
+        _cache[key] = json.loads(fetch_text(f"https://archive.org/metadata/{ident}", KIT_UA) or "{}")
+    return _cache[key]
+
+
+def ia_best_video(meta, wanted=None):
+    """(file name, size) of the pinned file if the item still has it, else its best browser-playable MP4."""
+    files = [f for f in meta.get("files", []) if f["name"].lower().endswith((".mp4", ".m4v"))]
+    for f in files:
+        if f["name"] == wanted:
+            return f["name"], int(f.get("size", 0))
+    ok = [f for f in files if f.get("format") in IA_VIDEO_PREF and int(f.get("size", 0)) > 20_000_000]
+    if not ok:
+        return None, 0
+    # preferred format, then the biggest file of it (several cuts or a trailer can sit in one item)
+    f = min(ok, key=lambda f: (IA_VIDEO_PREF.index(f["format"]), -int(f.get("size", 0))))
+    return f["name"], int(f.get("size", 0))
+
+
+def looks_like_video(path):
+    try:
+        with open(path, "rb") as f:
+            head = f.read(16)
+    except OSError:
+        return False
+    return b"ftyp" in head[:12] or head.startswith(b"\x1a\x45\xdf\xa3") or head.startswith(b"RIFF")  # mp4 / mkv,webm / avi
+
+
+def get_movie(m, dry_run=False):
+    dest = catalog.movie_file(m)
+    if os.path.isfile(dest) and looks_like_video(dest):
+        say(f"OK  {os.path.basename(dest)} (have it)")
+        return True
+    if m.get("url"):  # added by hand from a direct link
+        url, size = m["url"], None
+    else:
+        meta = ia_metadata(m["ia"])
+        name, size = ia_best_video(meta, m.get("file"))
+        if not name:
+            say(f"FAIL {m['title']}: no playable MP4 in archive.org item {m['ia']}")
+            return False
+        if name != m.get("file"):
+            say(f"    {m['title']}: {m.get('file')} is gone from archive.org, using {name}")
+        url = f"https://archive.org/download/{m['ia']}/{urllib.parse.quote(name)}"
+    print(f"    {m['title']} ({m.get('year') or '?'}): {size / 1e6:,.0f} MB" if size else f"    {m['title']}", flush=True)
+    if dry_run:
+        print(f"    {url}")
+        return True
+    if not get(url, dest, tries=3, ua=KIT_UA):
+        return False
+    if looks_like_video(dest):
+        return True
+    os.remove(dest)
+    say(f"FAIL {m['title']}: the download isn't a video file <- {url}")
+    return False
+
+
+def movies_get(movies, dry_run=False):
+    say(f"=== movies v{VERSION}: {len(movies)} film(s) ===")
+    fails = 0
+    for n, m in enumerate(movies, 1):
+        print(f"--- {n}/{len(movies)} {m['title']}", flush=True)
+        fails += not get_movie(m, dry_run)
+    say(f"=== movies done, {fails} failed ===" if not dry_run else "=== dry run: nothing downloaded ===")
+    return fails
+
+
+def print_movies(movies):
+    cat = None
+    for m in movies:
+        if m["cat"] != cat:
+            cat = m["cat"]
+            print(f"\n{catalog.MOVIE_CATEGORIES.get(cat, cat)}  (category: {cat})")
+        mark = "✓" if os.path.isfile(catalog.movie_file(m)) else " "
+        print(f"  {mark} {m['id']:<24} {m['title']} ({m.get('year') or '?'}), {m.get('minutes') or '?'} min")
+    print(f"\n✓ = downloaded.  Get some with e.g.:  {kit_cmd()} movies get comedy nosferatu\n"
+          f"Add any other free film:  {kit_cmd()} movies add https://archive.org/details/<item>")
+
+
+def slug(s):
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:40] or "movie"
+
+
+def cmd_movies_add(a):
+    """Add a film to movies/my-movies.json and download it. Takes an archive.org item (link or id)
+    or a direct link to a video file. Only add films you are allowed to download (public domain or open license)."""
+    src = a.words[0] if a.words else die(f"say what to add, e.g. {kit_cmd()} movies add https://archive.org/details/<item>")
+    m = re.match(r"(?:https?://(?:www\.)?archive\.org/(?:details|download)/)?([A-Za-z0-9._-]+)/?(?:[?#].*)?$", src)
+    if src.startswith("http") and not re.match(r"https?://(?:www\.)?archive\.org/(details|download)/", src):
+        name = urllib.parse.unquote(os.path.basename(urllib.parse.urlparse(src).path))
+        name.lower().endswith(catalog.VIDEO_EXT) or die("a direct link must end in a video file name (.mp4, .webm, ...)")
+        entry = dict(title=a.title or os.path.splitext(name)[0].replace("_", " "), year=a.year, url=src, file=name,
+                     license="added by you (from " + urllib.parse.urlparse(src).netloc + ")")
+    elif m:
+        ident = m.group(1)
+        meta = ia_metadata(ident)
+        meta.get("metadata") or die(f"archive.org has no item {ident!r}")
+        md = meta["metadata"]
+        name, size = ia_best_video(meta)
+        name or die(f"archive.org item {ident} has no MP4 video the kit can play")
+        lic = md.get("licenseurl") or md.get("rights") or "see archive.org"
+        if not re.search(r"publicdomain|creativecommons", str(lic)):
+            print(f"Note: archive.org lists no public-domain or Creative Commons license for this item ({lic}).\n"
+                  "Only keep it if you know it's free to download.")
+        title = a.title or (md.get("title") if isinstance(md.get("title"), str) else ident)
+        year = a.year or (re.search(r"\d{4}", str(md.get("year") or md.get("date") or "")) or [None])[0]
+        entry = dict(title=title, year=year, ia=ident, file=name, license=str(lic))
+    else:
+        die("give an archive.org link or item id, or a direct link to a video file")
+    entry.update(id=slug(entry["title"]), cat=a.category or "my-movies", minutes=None, kw="mine added")
+    mine = [x for x in catalog.my_movies() if x["id"] != entry["id"]] + [entry]
+    os.makedirs(catalog.MOVIES_DIR, exist_ok=True)
+    with open(catalog.MY_MOVIES, "w", encoding="utf-8") as f:
+        json.dump(mine, f, indent=1)
+    say(f"Added {entry['title']} ({entry.get('year') or '?'}) as {entry['id']!r} in {catalog.MY_MOVIES}")
+    if not a.dry_run and not get_movie(entry):
+        say(f"Download failed; run `{kit_cmd()} movies get {entry['id']}` to retry.")
+        sys.exit(2)
+
+
+def movies_menu():
+    cats = list(catalog.MOVIE_CATEGORIES)
+    movies = catalog.all_movies()
+    print("\nMovies (optional: not part of install all). Public domain and Creative Commons films.\n")
+    shown = []
+    for c in cats:
+        items = [m for m in movies if m["cat"] == c]
+        if items:
+            shown.append(c)
+            got = sum(os.path.isfile(catalog.movie_file(m)) for m in items)
+            print(f"  {len(shown):>2}  {catalog.MOVIE_CATEGORIES[c]:<42} {len(items):>2} films" +
+                  (f", {got} downloaded" if got else ""))
+    print(f"  {len(shown) + 1:>2}  Everything (about 17 GB)")
+    print("\nType numbers, categories, movie ids or keywords (e.g. 1 5 nosferatu, or 'sherlock holmes');")
+    print("'list' shows every film; Enter alone cancels.")
+    while True:
+        ans = menu("> ")
+        if not ans:
+            print("Nothing chosen.")
+            return
+        if ans.lower() == "list":
+            print_movies(movies)
+            continue
+        numbers = {n: c for n, c in enumerate(shown, 1)} | {len(shown) + 1: "all"}
+        words = menu_words(ans, numbers, movies, catalog.MOVIE_FIELDS)
+        chosen, unknown = catalog.pick(movies, words, catalog.MOVIE_FIELDS)
+        if unknown:
+            print(f"Nothing matches: {', '.join(unknown)}")
+        if chosen:
+            break
+    print_movies(chosen)
+    if not menu(f"Download {len(chosen)} film(s) now? [Y/n] ").lower().startswith("n"):
+        sys.exit(2 if movies_get(chosen) else 0)
+
+
+def cmd_movies(a):
+    if a.action == "add":
+        return cmd_movies_add(a)
+    if a.action is None:
+        if not sys.stdin.isatty():
+            die(f"say what to get, e.g. {kit_cmd()} movies get comedy   (or {kit_cmd()} movies list)")
+        return movies_menu()
+    movies, unknown = catalog.pick(catalog.all_movies(), a.words or ["all"], catalog.MOVIE_FIELDS)
+    if unknown:
+        print(f"Nothing matches: {', '.join(unknown)}. Categories: {', '.join(catalog.MOVIE_CATEGORIES)}, all. "
+              f"`{kit_cmd()} movies list` shows every film.")
+    if a.action == "list":
+        return print_movies(movies)
+    if not a.words:
+        die(f"say which films, e.g. {kit_cmd()} movies get comedy nosferatu   (or: movies get all)")
+    if not movies:
+        sys.exit(1)
+    if movies_get(movies, a.dry_run):
+        say("Some downloads failed (FAIL lines above). Run the same command again to retry them.")
+        sys.exit(2)
+
+
 # ==== make-drive =======================================================================================
 DRIVE_SKIP_DIRS = {".git", ".venv", "build", "__pycache__", "drive-root", "logs"}
 DRIVE_SKIP = re.compile(r"(\.bak-[^/\\]*|\.DS_Store|^\._.*|^download.*\.log|\.log|\.part|\.tmp|\.new\.pmtiles)$")
@@ -754,8 +1506,11 @@ def main():
                                 formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("install", help="quick start: all, wiki or maps")
-    s.add_argument("what", choices=["all", "wiki", "maps"])
+    s = sub.add_parser("install", help="quick start: all, wiki or maps; optional modules: books, software, movies")
+    s.add_argument("what", choices=["all", "wiki", "maps", "books", "software", "movies"])
+    s.add_argument("words", nargs="*", help="books/software/movies: only these (categories, ids or keywords)")
+    s.add_argument("--audio", action="store_true", help="books: also the audiobooks (MP3, large)")
+    s.add_argument("--os", help="software: windows, mac, linux (comma list), current or all (default)")
     s.add_argument("--platform", help="programs for: current (default for wiki/maps), all (default for all; "
                    "needed for a drive that runs on both Windows and Mac)")
     s.add_argument("--only", help="wiki/all: only libraries whose name contains this, e.g. wikipedia_en_all")
@@ -809,6 +1564,34 @@ def main():
     s.add_argument("drive", help="the drive, e.g. E:\\ on Windows or /Volumes/NAME on a Mac")
     s.add_argument("--no-libraries", action="store_true", help="skip kiwix/*.zim (quick)")
     s.set_defaults(fn=cmd_make_drive)
+    s = sub.add_parser("books", help="optional: textbooks, novels and audiobooks (menu, list, get)")
+    s.add_argument("action", nargs="?", choices=["list", "get"])
+    s.add_argument("words", nargs="*", help="categories (math, nursing, ... fiction, textbooks, all), "
+                   "book ids or keywords; quote a phrase: \"think python\"")
+    s.add_argument("--format", choices=["epub", "pdf", "both"], default="epub",
+                   help="epub (default): EPUB when there is one, else PDF; pdf: the other way round; both")
+    s.add_argument("--audio", action="store_true", help="also get the audiobook (LibriVox MP3) where there is one")
+    s.add_argument("--audio-only", action="store_true", help="only the audiobooks")
+    s.add_argument("--dry-run", action="store_true", help="show what would be downloaded")
+    s.set_defaults(fn=cmd_books)
+    s = sub.add_parser("software", help="optional: programs for the download center, by OS (menu, list, get)")
+    s.add_argument("action", nargs="?", choices=["list", "get", "update", "check"],
+                   help="update: newest version of everything you already have (old versions are removed); "
+                        "check: just report what's out of date")
+    s.add_argument("words", nargs="*", help="program ids (vlc, mplayer, mpv, calibre, sumatrapdf, thorium, 7zip, "
+                   "firefox, retroarch, notepadpp), keywords (video, ebook...) or all")
+    s.add_argument("--os", help="windows, mac, linux (comma list), current, or all (default)")
+    s.add_argument("--dry-run", action="store_true", help="find the newest versions, download nothing")
+    s.set_defaults(fn=cmd_software)
+    s = sub.add_parser("movies", help="optional: free films to stream or download (menu, list, get, add)")
+    s.add_argument("action", nargs="?", choices=["list", "get", "add"])
+    s.add_argument("words", nargs="*", help="get: categories (comedy, drama, mystery, adventure, horror, open-movies, "
+                   "all), movie ids or keywords. add: an archive.org link or item id, or a direct video link")
+    s.add_argument("--title", help="add: the film's title (default: from archive.org or the file name)")
+    s.add_argument("--year", help="add: the year")
+    s.add_argument("--category", help="add: which section it shows in (default my-movies)")
+    s.add_argument("--dry-run", action="store_true", help="show what would be downloaded")
+    s.set_defaults(fn=cmd_movies)
     s = sub.add_parser("version", help="print the kit version")
     s.set_defaults(fn=lambda a: print(f"offline prepper kit {VERSION}"))
 

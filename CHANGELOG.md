@@ -1,5 +1,40 @@
 # Changelog: offline prepper kit
 
+## 1.14.0 (2026-11-26)
+Optional modules: books, audiobooks, movies and a software center. None of them is part of `install all`.
+- `kit books` (menu), `books list|get WORDS`: 63 books. Math, nursing, science, business and history textbooks from
+  OpenStax (newest live edition, looked up on openstax.org; PDF), programming books (Think Python, Think Java, Open Data
+  Structures, OSTEP chapter PDFs, SICP and Pro Git EPUBs, OpenStax Intro to Python, the Rust book as the Kiwix DevDocs
+  library) and 20 classic novels from Project Gutenberg (EPUB, fetched from Gutenberg mirrors). `--audio` adds the
+  LibriVox audiobook (19 of the 20 novels). EPUB first, then PDF (`--format pdf|both`). Pick by category, group
+  (textbooks, fiction), id or keyword/phrase. `books/ABOUT THESE BOOKS.txt` lists each book's source and license.
+- `kit movies` (menu), `movies list|get WORDS`: 40 films (~17 GB): public domain classics from the Internet Archive and
+  Creative Commons open movies. `movies add <archive.org link | video URL>` adds any other free film
+  (`movies/my-movies.json`); video files copied into `movies/` also show up.
+- `kit software` (menu), `software list|get WORDS --os windows,mac,linux`: newest VLC, MPlayer (Windows), mpv, Calibre,
+  SumatraPDF, Thorium Reader, 7-Zip, Firefox, RetroArch (+ cores pack) and Notepad++ for each system; GitHub checksums
+  are verified; older versions are removed when a newer one is complete.
+- `software update [words] [--os ...]`: newest release of every program you already have (only what changed is
+  downloaded, checksum-checked, older version removed); `software check` reports what's out of date without
+  downloading. `checksums.json` records when each file was downloaded and last confirmed current; the Software page,
+  its OS tab and the Home page card warn when that was more than 4 months ago (`STALE_DAYS` in `bin/catalog.py`).
+- `install books|movies|software [words]`.
+- Hub pages: **Books** (EPUB/PDF links, audiobook player that continues to the next part and remembers the position,
+  "open in Library" for the Rust book), **Movies** (stream with seeking and resume, or download), **How to add more
+  movies**, **Software** (Windows/Mac/Linux tabs, install tips). Each page says how to install its module when it's
+  empty, with copyable commands. Home page cards with counts; header bar gets Books, Movies, Software.
+- `intranet.py`: `/books.json`, `/movies.json`, `/software.json`; files under `/files/...` with HTTP byte ranges
+  (video seeking; iPhones won't play video without them); `?download` saves instead of playing.
+- Software is taken only from each program's official host (allow-list in `bin/catalog.py`; no SourceForge or other
+  download portals, which have bundled adware into installers before) and checked against the publisher's sha256 where
+  one is posted: GitHub release digests, VideoLAN `.sha256` (from download.videolan.org, not the mirror), Mozilla
+  `SHA256SUMS`. A missing publisher checksum stops that download. `checksums.json` per program records it; the
+  Software page shows "✓ verified". MPlayer: the project ships no Windows/Mac programs (only unofficial SourceForge
+  builds), so the kit points to mpv (its maintained successor) and VLC instead.
+- Downloads for the new modules identify as `offline-prepper-kit/1.14.0` (some hosts refuse the generic browser name).
+- All downloads: a stalled transfer (under 1 KB/s for 60 s, e.g. a hung mirror) is dropped and resumed,
+  and size checks and page fetches give up after 60/180 s instead of waiting forever.
+
 ## 1.13.3 (2026-11-26)
 - Ports: if another program already uses the library's or the map's port (on a Windows PC, Wondershare's
   `WsTaskNotification.exe` held 8090, so the map never started), the kit now uses the next free port (8081..., 8091...)

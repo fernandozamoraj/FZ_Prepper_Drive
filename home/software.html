@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Software Center</title>
+<!-- Offline prepper kit v1.14.0: the optional Software module (bin/catalog.py, `kit software`), served by bin/intranet.py at /software -->
+<link rel="stylesheet" href="/media.css">
+<style>.old{color:#b06d00;font-weight:600} @media (prefers-color-scheme: dark){.old{color:#f0b54a}}
+.item .actions{align-items:center}</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<script src="/media.js"></script>
+<div class="wrap">
+  <h1>Software center</h1>
+  <p class="sub">Free programs to install on a computer without internet: media players, e-book readers, a browser, an archive tool,
+    an emulator front end and a text editor.</p>
+  <div id="banner"></div>
+  <div id="stale"></div>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <p class="muted" id="phone" hidden>These are programs for computers. Phones and tablets can't install them, but can download a copy to carry over.</p>
+  <div class="list" id="out"><p class="muted">Loading…</p></div>
+
+  <h2>Installing without internet</h2>
+  <ul class="tips">
+    <li><b>Windows:</b> run the <code>.exe</code> or <code>.msi</code>. If Windows says it "protected your PC", click
+      <b>More info → Run anyway</b>. A <code>.zip</code> opens in File Explorer; a <code>.7z</code> needs 7-Zip (install it first).</li>
+    <li><b>Mac:</b> open the <code>.dmg</code> and drag the app to Applications. If macOS won't open it, right-click the app →
+      <b>Open</b> → <b>Open</b>. Pick <b>Apple Silicon</b> (M1 and later) or <b>Intel</b> where there are two
+      ( → About This Mac shows which).</li>
+    <li><b>Linux:</b> make an <code>.AppImage</code> runnable (<code>chmod +x Thorium*.AppImage</code>) and double-click it;
+      <code>sudo apt install ./file.deb</code> for a <code>.deb</code>; unpack <code>.tar.xz</code> with <code>tar -xf</code>.</li>
+    <li>Only official releases, straight from each project (GitHub, VideoLAN, Mozilla, libretro, the SumatraPDF site):
+      no download portals, so no bundled adware. <b>✓ verified</b> means the file matched the publisher's own
+      checksum; SumatraPDF and RetroArch publish none, so those come from their official HTTPS sites unchecked.</li>
+  </ul>
+  <footer>All programs here are free and open source; each one's license is shown with it. Offline prepper kit v1.14.0</footer>
+</div>
+<script>
+const {esc, cmd, store, json, banner} = fzMedia;
+let DATA, OS;
+const ua = navigator.userAgent, mobile = /iPhone|iPad|Android/i.test(ua);
+const guess = /Mac/i.test(ua) && !mobile ? 'mac' : /Linux|X11/i.test(ua) && !/Android/i.test(ua) ? 'linux' : 'windows';
+
+function render() {
+  const kit = DATA.cmd, oses = Object.keys(DATA.os);
+  const any = oses.some(o => DATA.os[o].apps.some(a => a.files.length));
+  document.getElementById('banner').innerHTML = any ? '' : banner('The Software module is not installed yet', [
+    'It is optional (not part of <i>install all</i>). On the computer that runs the kit, open a terminal in the kit folder and run:',
+    `${cmd(`${kit} software`)} a menu to pick programs, or for example`,
+    `${cmd(`${kit} software get vlc calibre thorium`)} ${cmd(`${kit} software get all --os windows`)} ${cmd(`${kit} install software`)} (everything: about 1 GB per system, 3.4 GB for all three)`,
+    'Then reload this page.']);
+  // Updates: anything not checked against the publisher for more than 4 months gets a warning
+  const stale = oses.flatMap(o => DATA.os[o].apps.filter(a => a.files.some(f => f.stale)).map(a => `${a.name} (${DATA.os[o].name})`));
+  const months = Math.round(DATA.stale_days / 30);
+  document.getElementById('stale').innerHTML = !stale.length ? (any ? `<p class="tips">Keep these current: on the computer that
+    runs the kit, ${cmd(`${kit} software update`)} gets the newest version of everything here (and removes the old one);
+    ${cmd(`${kit} software check`)} only reports what's out of date.</p>` : '')
+    : banner(`${stale.length} program${stale.length > 1 ? 's are' : ' is'} more than ${months} months old`, [
+      `Not checked for updates in over ${months} months: ${esc(stale.join(', '))}. Newer versions with security fixes may exist.`,
+      `When this computer has internet, run ${cmd(`${kit} software update`)} in the kit folder. It downloads only what changed,
+       checks it, and removes the old version. ${cmd(`${kit} software check`)} lists what's out of date without downloading.`]);
+  document.getElementById('tabs').innerHTML = oses.map(o => {
+    const n = DATA.os[o].apps.filter(a => a.files.length).length;
+    const old = DATA.os[o].apps.some(a => a.files.some(f => f.stale));
+    return `<button class="tab" role="tab" data-os="${o}" aria-selected="${o === OS}">${esc(DATA.os[o].name)} <small>(${n})</small>${old ? ' ⚠️' : ''}</button>`;
+  }).join('');
+  document.getElementById('out').innerHTML = DATA.os[OS].apps.map(a => {
+    const files = a.files.map(f => `<a class="btn primary" href="${esc(f.url)}" download>⬇ ${esc(f.name)} <small>${f.mb} MB</small></a>` +
+      (f.verified ? `<small class="muted" title="sha256 ${esc(f.sha256)}">✓ verified (${esc(f.verified)})</small>`
+                  : `<small class="muted" title="sha256 ${esc(f.sha256 || '?')}">official site, no published checksum</small>`) +
+      `<small class="${f.stale ? 'old' : 'muted'}">${f.stale ? '⚠️ ' : ''}downloaded ${esc(f.downloaded)}, last checked for updates ${esc(f.checked)}` +
+      (f.stale ? ` (${Math.round(f.age_days / 30)} months ago): ${cmd(`${kit} software update ${a.id} --os ${OS}`)}` : '') + '</small>').join('');
+    const body = a.note ? `<div class="get">${esc(a.note)}</div>`
+      : files ? `<div class="actions" style="margin-top:8px">${files}</div>`
+      : `<div class="get">not downloaded (${esc(a.variants.join(', '))}): ${cmd(`${kit} software get ${a.id} --os ${OS}`)}</div>`;
+    return `<div class="item${a.files.length || a.note ? '' : ' missing'}"><div class="t">${esc(a.name)}</div>
+      <div class="muted">${esc(a.about)} <small>· ${esc(a.license)}</small></div>${body}</div>`;
+  }).join('');
+}
+document.getElementById('tabs').addEventListener('click', e => {
+  const t = e.target.closest('[data-os]');
+  if (t) { OS = t.dataset.os; store.set('software-os', OS); render(); }
+});
+document.getElementById('phone').hidden = !mobile;
+json('/software.json').then(d => { DATA = d; OS = store.get('software-os', guess); if (!DATA.os[OS]) OS = 'windows'; render(); })
+  .catch(() => document.getElementById('out').innerHTML = '<p class="muted">Could not load the software list.</p>');
+</script>
+</body>
+</html>

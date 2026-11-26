@@ -76,6 +76,21 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
       <p>King James Version. Look up any verse (John 3:16, Ps 23) or search words and exact phrases.</p>
       <span class="status"><span class="dot" data-svc="library"></span><span data-svc-label="library">checking…</span></span>
     </a>
+    <a class="card" href="/books">
+      <div class="ico">📕</div><h2>Books &amp; audiobooks</h2>
+      <p>Textbooks for math, nursing, science, programming, business and history; classic novels with audiobooks.</p>
+      <span class="status"><span class="dot" id="booksdot"></span><span id="bookscount">checking…</span></span>
+    </a>
+    <a class="card" href="/movies">
+      <div class="ico">🎬</div><h2>Movies</h2>
+      <p>Public domain classics and open movies. Watch on any phone or TV on the Wi-Fi, or download.</p>
+      <span class="status"><span class="dot" id="moviesdot"></span><span id="moviescount">checking…</span></span>
+    </a>
+    <a class="card" href="/software">
+      <div class="ico">💾</div><h2>Software</h2>
+      <p>Install programs without internet: VLC, Calibre, Thorium, SumatraPDF, Firefox, 7-Zip and more, for Windows, Mac and Linux.</p>
+      <span class="status"><span class="dot" id="softwaredot"></span><span id="softwarecount">checking…</span></span>
+    </a>
     <a class="card" href="#guides">
       <div class="ico">📄</div><h2>PDF guides</h2>
       <p>Army survival manuals, FEMA, water disinfection, home canning, Where There Is No Doctor and more.</p>
@@ -93,7 +108,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
     <b>Directions</b> are ready a few seconds after starting.<br>
     <b>Bible:</b> type a verse phrase in the search box above, or pick the Bible group in the library to search only the Bible.</p>
 
-  <footer>Offline prepper kit v1.13.3 · started with <code>runhomeintra</code></footer>
+  <footer>Offline prepper kit v1.14.0 · started with <code>runhomeintra</code></footer>
 </div>
 <script>
 const host = location.hostname, proto = location.protocol;
@@ -121,6 +136,22 @@ async function status(){
   } catch {}
 }
 status(); setInterval(status, 10000);
+
+// Optional modules: how much of each is downloaded ("not installed" links to the page, which says how to add it)
+const modules = {
+  books: [d => d.categories.flatMap(c => c.books).filter(b => Object.keys(b.have).length).length, 'books'],
+  movies: [d => d.categories.flatMap(c => c.movies).filter(m => m.url).length, 'films'],
+  software: [d => Object.values(d.os).flatMap(o => o.apps).filter(a => a.files.length).length, 'downloads'],
+};
+for (const [name, [count, unit]] of Object.entries(modules)) {
+  fetch(`/${name}.json`).then(r => r.json()).then(d => {
+    const n = count(d);
+    document.getElementById(name + 'dot').className = 'dot ' + (n ? 'up' : '');
+    const old = name === 'software' ? Object.values(d.os).flatMap(o => o.apps).filter(a => a.files.some(f => f.stale)).length : 0;
+    document.getElementById(name + 'count').textContent = n ? `${n} ${unit}` + (old ? ` · ⚠️ ${old} over 4 months old: open to update` : '')
+      : 'not installed (optional): open to see how';
+  }).catch(() => {});
+}
 
 (async () => {
   try {

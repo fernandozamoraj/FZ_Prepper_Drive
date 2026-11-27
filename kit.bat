@@ -1,5 +1,5 @@
 @echo off
-rem kit.bat (offline prepper kit v1.15.0): run a kit command on Windows. See README.md, or: kit.bat --help
+rem kit.bat (offline prepper kit v1.16.0): run a kit command on Windows. See README.md, or: kit.bat --help
 rem   commands: setup, download, build-map, build-routing, build-places, build-bible, build-all, all, make-drive E:\
 rem Uses the kit's portable Python (runtime\win-x64); if it isn't there yet, downloads it first (~30 MB).
 setlocal

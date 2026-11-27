@@ -1,5 +1,30 @@
 # Changelog: offline prepper kit
 
+## 1.16.0 (2026-11-27)
+- **Family emergency page** (`/family`, 👪 in the header bar, a card on the Home page): your own emergency contacts,
+  meeting places, household medical information (allergies, medicines, blood type, conditions), doctors/pharmacy/
+  hospital, insurance and account numbers, home items (shut-offs, spare key, supplies), pets, where important documents
+  are, and free notes. View, Edit, Print (two-column paper copy with the print date), Change password, Lock.
+- **Locked in the browser** with a password (`home/family-crypto.js`, format `fz-family-1`): PBKDF2-HMAC-SHA256 with
+  600,000 rounds, HMAC-SHA256 counter-mode stream and an encrypt-then-MAC tag, written in plain JavaScript so it works
+  on phones that open the kit over `http://192.168...` (browsers turn `crypto.subtle` off there); `crypto.subtle` is
+  used for the slow step where it exists. The server stores only `family/family.enc.json` and never sees the password.
+- Meeting places and doctors with a map location (lat, lon) link to the offline map with a pin ("Directions to here").
+  Phone numbers are tap-to-call.
+- Server (`bin/intranet.py`): `GET /family.json`, `POST /family.json` (save), `POST /family/forget` (start over; this
+  computer only; renames, never deletes). The first setup only from the computer running the kit. Later saves from any
+  device must send the password-derived write key (checked against a SHA-256 verifier) and the newest revision
+  (otherwise 409, so two devices can't silently overwrite each other). The last 5 saves are kept (`.1`…`.5`).
+- Locks itself after 10 minutes without use (saves unsaved edits first); asks before leaving with unsaved changes.
+- `make-drive` (both `kit.py` and `make-drive.sh`) copies `family/` to the drive but never replaces a newer copy that
+  was saved on the drive itself. `.gitignore` keeps `family/` out of git.
+- Tested: `tests/test_family.py` (32 checks: JS ↔ Python interoperability for both PBKDF2 paths, non-ASCII passwords,
+  wrong password, tampered byte, swapped tag, setup/save/stale/forget rules, phone vs this computer, backups); in the
+  browser pane against a test hub on port 9000 with a scratch folder: setup, add/save, view, map and phone links, lock,
+  wrong and right password, cancel, change password, auto-lock, Home page card; and opened over the Wi-Fi address at
+  phone width (no `crypto.subtle`; unlock 0.3 s on this Mac; save works). Not tried: a real phone, Windows, printing
+  on paper.
+
 ## 1.15.0 (2026-11-26)
 - **Settings page** (`/settings`, ⚙️ in the header bar): add your own folders of movies, books and audiobooks (on this
   computer, a USB drive or the kit's thumb drive). Type a path or use **Browse…** to click through the computer's

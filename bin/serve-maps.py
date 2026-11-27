@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""serve-maps: serve the offline map viewer + .pmtiles over the local network (v1.15.0).
+"""serve-maps: serve the offline map viewer + .pmtiles over the local network (v1.16.0).
 
 Usage: serve-maps.py [port]   (default 8090)
 Serves ../map-viewer/ at /, and ../maps/*.pmtiles at /tiles/. Supports HTTP Range requests,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""kit.py (offline prepper kit v1.15.0): download and rebuild everything in the kit, on macOS or Windows.
+"""kit.py (offline prepper kit v1.16.0): download and rebuild everything in the kit, on macOS or Windows.
 
 Run it through the wrappers, which also fetch a portable Python the first time if needed:
     macOS:   ./kit.sh <command> [options]
@@ -51,7 +51,7 @@ import time
 import urllib.parse
 import zipfile
 
-VERSION = "1.15.0"
+VERSION = "1.16.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(KIT, "bin"))  # kitplatform (python -I leaves script dirs out of sys.path)
@@ -1467,6 +1467,11 @@ def copy_changed(src, dst, skip_zims):
             s, d = os.path.join(root, f), os.path.join(dst, rel, f)
             st = os.stat(s)
             if os.path.exists(d) and size_of(d) == st.st_size and abs(os.path.getmtime(d) - st.st_mtime) < 3:
+                continue
+            if rel.split(os.sep)[0] == "family" and os.path.exists(d) and os.path.getmtime(d) > st.st_mtime + 3:
+                # The Family page was saved on the drive after this copy: never replace the newer one
+                print(f"  KEPT {os.path.join(rel, f)}: the drive's copy is newer (saved on the drive). To keep it on this"
+                      f" computer too, copy it back: {d} -> {s}", flush=True)
                 continue
             os.makedirs(os.path.dirname(d), exist_ok=True)
             print(f"  {os.path.join(rel, f)}", flush=True)

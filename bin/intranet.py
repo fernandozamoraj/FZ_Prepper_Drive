@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.15.0).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.16.0).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -38,7 +38,7 @@ import kitplatform  # noqa: E402
 import catalog  # noqa: E402  (books, audiobooks, movies, software)
 import mimetypes  # noqa: E402
 
-VERSION = "1.15.0"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
+VERSION = "1.16.0"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
 KIT = kitplatform.KIT
 GUIDES = os.path.join(KIT, "guides")
 PORTS = {"library": 8080, "maps": 8090}
@@ -198,6 +198,66 @@ def browse_json(path):
             "sep": os.sep}
 
 
+# ---- Family page (home/family.html): one encrypted file, locked and unlocked in the browser -------------------------
+FAMILY_DIR = os.path.join(KIT, "family")
+FAMILY_FILE = os.path.join(FAMILY_DIR, "family.enc.json")
+FAMILY_KEEP = 5  # earlier saves kept as family.enc.json.1 (newest) ... .5, all still encrypted
+FAMILY_LOCK = threading.Lock()
+B64 = re.compile(r"^[A-Za-z0-9+/]*={0,2}$")
+
+
+def family_load():
+    try:
+        with open(FAMILY_FILE, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) and isinstance(d.get("file"), dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def family_json(local):
+    d = family_load()
+    out = {"local": local, "exists": bool(d), "file_path": FAMILY_FILE}
+    if d:
+        out |= {"file": {k: v for k, v in d["file"].items() if k != "verifier"}, "rev": d.get("rev", 0),
+                "saved": d.get("saved")}
+    return out
+
+
+def family_file_ok(f):
+    """The shape of a locked file sent by family.html (the server can't read it, only check it looks right)."""
+    try:
+        return (f["format"] == "fz-family-1" and isinstance(f["iter"], int) and 100000 <= f["iter"] <= 10_000_000
+                and all(isinstance(f[k], str) and B64.match(f[k]) for k in ("salt", "nonce", "ct", "tag"))
+                and len(f["salt"]) == 24 and len(f["nonce"]) == 24 and len(f["tag"]) == 44 and len(f["ct"]) <= 8 << 20
+                and re.fullmatch(r"[0-9a-f]{64}", f["verifier"]) is not None
+                and set(f) == {"format", "iter", "salt", "nonce", "ct", "tag", "verifier"})
+    except (KeyError, TypeError):
+        return False
+
+
+def family_proof_ok(d, proof):
+    import hashlib
+    import hmac
+    if not isinstance(proof, str) or not re.fullmatch(r"[0-9a-f]{64}", proof):
+        return False
+    return hmac.compare_digest(hashlib.sha256(bytes.fromhex(proof)).hexdigest(), d["file"]["verifier"])
+
+
+def family_write(d):
+    """Save atomically, keeping the earlier saves (still encrypted) as .1 ... .5."""
+    os.makedirs(FAMILY_DIR, exist_ok=True)
+    if os.path.exists(FAMILY_FILE):
+        for n in range(FAMILY_KEEP, 1, -1):
+            if os.path.exists(f"{FAMILY_FILE}.{n - 1}"):
+                os.replace(f"{FAMILY_FILE}.{n - 1}", f"{FAMILY_FILE}.{n}")
+        os.replace(FAMILY_FILE, FAMILY_FILE + ".1")
+    tmp = FAMILY_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(d, f)
+    os.replace(tmp, FAMILY_FILE)
+
+
 def file_url(path):
     return "/files/" + urllib.parse.quote(os.path.relpath(path, KIT).replace(os.sep, "/"))
 
@@ -336,8 +396,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_error_json(403, "Folders can only be chosen on the computer that runs the kit.")
             q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             return self.send_json(browse_json(q.get("path", [""])[0]))
+        if path == "/family.json":
+            return self.send_json(family_json(self.is_local()))
         pages = {"/books": "books.html", "/movies": "movies.html", "/movies/add": "movies-add.html",
-                 "/software": "software.html", "/settings": "settings.html", "/media.css": "media.css", "/media.js": "media.js"}
+                 "/software": "software.html", "/settings": "settings.html", "/media.css": "media.css", "/media.js": "media.js",
+                 "/family": "family.html", "/family-crypto.js": "family-crypto.js"}
         if path.rstrip("/") in pages:
             self.path = "/home/" + pages[path.rstrip("/")]
             return super().do_GET()
@@ -449,12 +512,14 @@ running may be an older version that doesn't have this page yet.</p>
 
     def do_POST(self):
         path = urllib.parse.unquote(self.path.split("?", 1)[0])
-        if path not in ("/settings.json", "/settings/rescan"):
+        if path not in ("/settings.json", "/settings/rescan", "/family.json", "/family/forget"):
             return self.not_found()
         origin = urllib.parse.urlsplit(self.headers.get("Origin") or "")
         if origin.netloc and ((origin.port or 80) != self.server.server_address[1] or
                               origin.hostname not in ("localhost", "127.0.0.1", "::1", lan_ip())):
-            return self.send_error_json(403, "Changes must come from the kit's own Settings page.")
+            return self.send_error_json(403, "Changes must come from the kit's own pages.")
+        if path.startswith("/family"):
+            return self.post_family(path)
         if path == "/settings/rescan":  # harmless: anyone may ask for a fresh look through the folders
             scan_folders()
             return self.send_json(settings_json(self.is_local()))
@@ -494,6 +559,46 @@ running may be an older version that doesn't have this page yet.</p>
             return self.send_error_json(500, f"Could not save {catalog.SETTINGS_FILE}: {e.strerror or e}")
         scan_folders()
         return self.send_json(settings_json(True))
+
+    def post_family(self, path):
+        """/family.json: save the locked file. The first one can only be made on the computer running the kit; after
+        that any device may save (phones too) but must prove it knows the password (the write key, checked against the
+        verifier in the saved file) and that it saw the newest save (rev). /family/forget: this computer only; the old
+        file is renamed, never deleted, for "I forgot the password, start over"."""
+        if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+            return self.send_error_json(415, "Send JSON.")
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 12 << 20)) or b"{}")
+            assert isinstance(body, dict)
+        except (ValueError, AssertionError):
+            return self.send_error_json(400, "Bad request.")
+        with FAMILY_LOCK:
+            d = family_load()
+            if path == "/family/forget":
+                if not self.is_local():
+                    return self.send_error_json(403, "Only the computer that runs the kit can start the Family page over.")
+                if d:
+                    os.replace(FAMILY_FILE, f"{FAMILY_FILE}.forgotten-{time.strftime('%Y%m%d-%H%M%S')}")
+                return self.send_json(family_json(True))
+            if not family_file_ok(body.get("file")):
+                return self.send_error_json(400, "That doesn't look like a locked Family page.")
+            if d is None:
+                if not self.is_local():
+                    return self.send_error_json(403, "Set up the Family page on the computer that runs the kit first.")
+                rev = 1
+            else:
+                if not family_proof_ok(d, body.get("proof")):
+                    return self.send_error_json(403, "The password doesn't match the saved Family page.")
+                if body.get("rev") != d.get("rev", 0):
+                    return self.send_error_json(409, "Someone saved the Family page on another device since you opened it. "
+                                                     "Copy anything you typed, then reload the page.")
+                rev = d.get("rev", 0) + 1
+            saved = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+            try:
+                family_write({"file": body["file"], "rev": rev, "saved": saved})
+            except OSError as e:
+                return self.send_error_json(500, f"Could not save {FAMILY_FILE}: {e.strerror or e}")
+        return self.send_json({"ok": True, "rev": rev, "saved": saved})
 
     def send_error_json(self, code, message):
         body = json.dumps({"error": message}).encode()

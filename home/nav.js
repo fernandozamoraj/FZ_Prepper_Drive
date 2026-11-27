@@ -1,5 +1,5 @@
-/* nav.js (offline prepper kit v1.15.0): the header bar on every page of the kit:
-   ⌂ Home (hub, port 8000) · Library (8080) · Bible (8000/bible) · Maps (8090) · Books · Movies · Software (8000/...).
+/* nav.js (offline prepper kit v1.16.0): the header bar on every page of the kit:
+   ⌂ Home (hub, port 8000) · Library (8080) · Bible (8000/bible) · Maps (8090) · Books · Movies · Software · Family (8000/...).
    The library and map ports can move when another program has them: the hub's /ports.json says where they are,
    and window.fzKit (.lib, .maps, .hub, .ready) gives other page scripts the current addresses.
    Served as /nav.js by intranet.py, serve-maps.py and kiwix-serve (KIWIX_SERVE_CUSTOMIZED_RESOURCES,
@@ -12,7 +12,7 @@
   window.__fznav = true;
 
   const h = location.hostname, p = location.protocol, port = location.port || (p === 'https:' ? '443' : '80');
-  const NAV_VERSION = '1.15.0';  // = intranet.py VERSION; a running hub that reports another one is older: restart it
+  const NAV_VERSION = '1.16.0';  // = intranet.py VERSION; a running hub that reports another one is older: restart it
   const K = window.fzKit = {ports: {hub: 8000, library: 8080, maps: 8090}};
   const at = n => `${p}//${h}:${K.ports[n]}/`;
   Object.defineProperties(K, {hub: {get: () => at('hub')}, lib: {get: () => at('library')}, maps: {get: () => at('maps')}});
@@ -25,7 +25,7 @@
   function current() {
     if (port === String(K.ports.maps)) return 'maps';
     if (port === String(K.ports.library)) return /^#bible_/.test(location.hash) ? 'bible' : 'library';
-    if (port === String(K.ports.hub)) return (location.pathname.match(/^\/(bible|books|movies|software|settings)/) || [0, 'home'])[1];
+    if (port === String(K.ports.hub)) return (location.pathname.match(/^\/(bible|books|movies|software|family|settings)/) || [0, 'home'])[1];
     return '';
   }
 
@@ -67,6 +67,7 @@
       item('books', K.hub + 'books', '📕', 'Books') +
       item('movies', K.hub + 'movies', '🎬', 'Movies') +
       item('software', K.hub + 'software', '💾', 'Software') +
+      item('family', K.hub + 'family', '👪', 'Family') +
       item('settings', K.hub + 'settings', '⚙️', '<span class="fz-lbl-long">Settings</span>');
     // Links open in this tab, never inside the library's content frame
     nav.querySelectorAll('a').forEach(a => a.target = '_top');
@@ -78,12 +79,12 @@
       nav.querySelectorAll('a[data-sec]').forEach(a =>
         a.dataset.sec === c ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
     });
-    const SECS = ['home', 'library', 'bible', 'maps', 'books', 'movies', 'software', 'settings'];
+    const SECS = ['home', 'library', 'bible', 'maps', 'books', 'movies', 'software', 'family', 'settings'];
     nav.querySelectorAll('a').forEach((a, i) => a.dataset.sec = SECS[i]);
     // Once the hub says where everything runs, point the links there
     K.ready.then(() => {
       const href = {home: K.hub, library: K.lib, bible: K.hub + 'bible', maps: K.maps, books: K.hub + 'books',
-        movies: K.hub + 'movies', software: K.hub + 'software', settings: K.hub + 'settings'}, c = current();
+        movies: K.hub + 'movies', software: K.hub + 'software', family: K.hub + 'family', settings: K.hub + 'settings'}, c = current();
       nav.querySelectorAll('a[data-sec]').forEach(a => {
         a.href = href[a.dataset.sec];
         a.dataset.sec === c ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
@@ -100,7 +101,7 @@
       bar.style.cssText = 'background:#fff3cd;color:#3d2e00;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
         'padding:8px 14px;border-bottom:1px solid #e8cf8a;position:relative;z-index:2147482999';
       bar.innerHTML = `<b>Restart the kit to finish updating.</b> Its files are version ${NAV_VERSION}, but the kit that is ` +
-        `running is ${K.hubVersion === 'older' ? 'an older version' : 'version ' + K.hubVersion}, so new pages (Books, Movies, Software) ` +
+        `running is ${K.hubVersion === 'older' ? 'an older version' : 'version ' + K.hubVersion}, so new pages (like Family) ` +
         `won't open yet. On the computer running it, close the kit's window (or press Ctrl+C) and start it again.`;
       if (nav.classList.contains('fz-overlay')) bar.style.cssText += ';position:fixed;top:40px;left:0;right:0';
       nav.insertAdjacentElement('afterend', bar);

@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Family Emergency Page</title>
+<!-- Offline prepper kit v1.16.0: your family's own emergency information, locked with a password. Served by bin/intranet.py
+     at /family. Locked and unlocked in this page (home/family-crypto.js); the server keeps only family/family.enc.json. -->
+<link rel="stylesheet" href="/media.css">
+<style>
+.lockbox{max-width:460px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.lockbox h2{margin-top:0}
+label.f{display:block;margin:10px 0 4px;font-weight:600;font-size:14px}
+input.in,select.in,textarea.in{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel);
+  color:var(--ink);font:inherit}
+textarea.in{min-height:64px;resize:vertical}
+input.in:focus,select.in:focus,textarea.in:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.check{display:flex;gap:8px;align-items:flex-start;margin:12px 0;font-size:14px}
+.err:empty{display:none}
+.err{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;padding:8px 12px;margin-top:10px}
+.okmsg{color:var(--accent);font-weight:600}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}
+.bar .grow{flex:1}
+.sec{margin-top:26px}
+.sec h2 .ico{font-size:18px}
+.hint{color:var(--muted);font-size:14px;margin:-4px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);break-inside:avoid}
+.card .t{font-weight:700;font-size:17px}
+.card .s{color:var(--muted);font-size:14px}
+.card dl{margin:8px 0 0;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:15px}
+.card dt{color:var(--muted);font-size:13px;padding-top:2px}
+.card dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.card a.tel{font-weight:700;text-decoration:none;color:var(--accent)}
+.empty{color:var(--muted);font-style:italic}
+.notes{white-space:pre-wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+fieldset.ed{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:8px 12px 12px;margin:0 0 10px}
+fieldset.ed .cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0 12px}
+fieldset.ed .wide{grid-column:1/-1}
+fieldset.ed .rm{float:right;margin-top:4px}
+.savebar{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:10px 0;margin-top:20px;
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;z-index:5}
+.printhead{display:none}
+@media print{
+  .noprint,.savebar{display:none!important}
+  .printhead{display:block;font-size:13px;color:#444;margin-bottom:6px}
+  body{background:#fff;color:#000;font-size:13px}
+  .wrap{max-width:none;padding:0}
+  .card{box-shadow:none;border-color:#999}
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .card a.tel{color:#000}
+  .sec{break-inside:auto;margin-top:14px}
+  h2{break-after:avoid}
+}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<script src="/media.js"></script>
+<script src="/family-crypto.js"></script>
+<div class="wrap">
+  <h1>👪 Family emergency page</h1>
+  <p class="sub noprint">Your own contacts, meeting places, medicines, doctors, insurance and where the shut-offs are, on every
+    phone on the Wi-Fi. Locked with a password: the kit stores it scrambled, and it can only be read on a device where
+    someone types the password.</p>
+  <div class="printhead" id="printhead"></div>
+  <div id="out"><p class="muted">Loading…</p></div>
+  <footer>Offline prepper kit v1.16.0</footer>
+</div>
+<script>
+const {esc, json} = fzMedia, C = fzFamilyCrypto;
+const IDLE_MIN = 10;  // lock again after this many minutes without a tap or key press
+
+// ---- What the page holds. Each section is a list of cards; the first field is the card's title. --------------------
+const SECTIONS = [
+  {id: 'contacts', title: 'Emergency contacts', icon: '📞', one: 'contact',
+   hint: 'Put one person who lives out of the area first: after a disaster, long-distance calls and texts often get through when local ones don\'t, so everyone checks in with them.',
+   fields: [['name', 'Name'], ['relation', 'Who they are', 'text', 'e.g. Aunt, out-of-area contact, neighbor'], ['phone', 'Phone', 'tel'],
+            ['phone2', 'Other phone', 'tel'], ['email', 'Email', 'email'], ['address', 'Address', 'textarea'], ['notes', 'Notes', 'textarea']]},
+  {id: 'places', title: 'Meeting places', icon: '📍', one: 'meeting place',
+   hint: 'Where everyone goes if you are split up or can\'t go home. Add the map location and it opens on the kit\'s offline map, with directions.',
+   fields: [['label', 'Name', 'text', 'e.g. The big oak at the corner'], ['kind', 'When', 'select', ['Right outside the home (fire)', 'In the neighborhood', 'Out of town', 'Other']],
+            ['address', 'Address or directions', 'textarea'], ['latlon', 'Map location', 'latlon'], ['notes', 'Notes', 'textarea']]},
+  {id: 'people', title: 'Household', icon: '👪', one: 'person',
+   hint: 'What a doctor or a rescuer would need to know about each person.',
+   fields: [['name', 'Name'], ['born', 'Date of birth', 'date'], ['phone', 'Phone', 'tel'],
+            ['blood', 'Blood type', 'select', ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown']],
+            ['allergies', 'Allergies', 'textarea'], ['meds', 'Medicines and doses', 'textarea'],
+            ['conditions', 'Medical conditions', 'textarea'], ['notes', 'Notes (glasses, devices, school, work)', 'textarea']]},
+  {id: 'medical', title: 'Doctors, pharmacy and hospital', icon: '🏥', one: 'doctor or place',
+   fields: [['name', 'Name'], ['kind', 'What', 'select', ['Doctor', 'Dentist', 'Specialist', 'Pharmacy', 'Hospital', 'Urgent care', 'Veterinarian', 'Other']],
+            ['phone', 'Phone', 'tel'], ['address', 'Address', 'textarea'], ['latlon', 'Map location', 'latlon'], ['notes', 'Notes', 'textarea']]},
+  {id: 'insurance', title: 'Insurance and accounts', icon: '🗂️', one: 'policy or account',
+   hint: 'Policy and member numbers, and who to call to make a claim.',
+   fields: [['kind', 'What', 'text', 'e.g. Health, Home, Car, Life'], ['company', 'Company'], ['number', 'Policy / member number'],
+            ['phone', 'Claims phone', 'tel'], ['notes', 'Notes', 'textarea']]},
+  {id: 'home', title: 'Home', icon: '🏠', one: 'item',
+   hint: 'Where things are and how to work them, for whoever is home when it matters.',
+   fields: [['item', 'What'], ['where', 'Where it is and how to use it', 'textarea']]},
+  {id: 'pets', title: 'Pets', icon: '🐾', one: 'pet',
+   fields: [['name', 'Name'], ['kind', 'Animal'], ['needs', 'Food, medicine, care', 'textarea'], ['notes', 'Notes (microchip, vet)', 'textarea']]},
+  {id: 'documents', title: 'Important documents', icon: '📄', one: 'document',
+   hint: 'Where the originals are (birth certificates, passports, deeds, wills, titles), so they can be grabbed in a hurry.',
+   fields: [['what', 'Document'], ['where', 'Where the original is', 'textarea'], ['notes', 'Notes', 'textarea']]},
+];
+
+function starter() {
+  return {schema: 1, notes: '', contacts: [], people: [], medical: [], insurance: [], pets: [], documents: [],
+    places: [{label: '', kind: 'Right outside the home (fire)'}, {label: '', kind: 'Out of town'}],
+    home: ['Water shut-off', 'Gas shut-off', 'Electrical panel (breakers)', 'Spare key', 'Emergency supplies and flashlights',
+           'Fire extinguisher', 'First-aid kit'].map(item => ({item, where: ''}))};
+}
+
+// ---- State -----------------------------------------------------------------------------------------------------------
+let S = null;          // /family.json
+let ring = null;       // keys of the unlocked file (in memory only)
+let data = null;       // the unlocked contents
+let rev = 0, editing = false, dirty = false, lastActive = Date.now(), msg = null;
+const out = document.getElementById('out');
+
+const parseLatLon = s => {
+  const m = String(s || '').match(/^\s*\(?\s*(-?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*\)?\s*$/);
+  return m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180 ? [+m[1], +m[2]] : null;
+};
+const mapLink = (ll, label) => `${window.fzKit ? fzKit.maps : '/'}?pin=${ll[0].toFixed(5)},${ll[1].toFixed(5)}&label=${encodeURIComponent(label || '')}#15/${ll[0].toFixed(5)}/${ll[1].toFixed(5)}`;
+const msgHTML = () => msg ? `<div class="${msg.ok ? 'okmsg' : 'err'}" role="status">${esc(msg.text)}</div>` : '';
+
+// ---- Locked: set up, unlock, start over ------------------------------------------------------------------------------
+function renderLocked() {
+  document.getElementById('printhead').textContent = '';
+  if (!S.exists && !S.local) {
+    out.innerHTML = `<div class="banner"><h3>Not set up yet</h3><p>The Family page is set up once on the computer that runs
+      the kit (open <b>http://localhost:8000/family</b> there). After that it opens on phones too.</p></div>`;
+    return;
+  }
+  if (!S.exists) {
+    out.innerHTML = `<form class="lockbox" id="setup" autocomplete="off">
+      <h2>Set up the Family page</h2>
+      <p class="muted" style="margin-top:0">Choose a password the grown-ups in your home will remember. Three or four
+        random words (<i>tractor maple river blue</i>) are easier to remember and harder to guess than <i>P@ssw0rd1</i>.</p>
+      <label class="f" for="pw1">Password</label><input class="in" id="pw1" type="password" autocomplete="new-password" minlength="8" required>
+      <label class="f" for="pw2">Type it again</label><input class="in" id="pw2" type="password" autocomplete="new-password" required>
+      <label class="check"><input type="checkbox" id="ack" required><span><b>Nobody can recover a forgotten password</b>, not even
+        from this computer. I'll write it down and keep it somewhere safe (for example with the drive, in a sealed envelope),
+        and I'll print a copy of the page once it's filled in.</span></label>
+      <button class="btn primary" type="submit">Create the Family page</button>
+      ${msgHTML()}</form>`;
+    document.getElementById('pw1').focus();
+    return;
+  }
+  out.innerHTML = `<form class="lockbox" id="unlock" autocomplete="off">
+      <h2>🔒 Locked</h2>
+      <label class="f" for="pw">Password</label>
+      <input class="in" id="pw" type="password" autocomplete="current-password" required>
+      <p><button class="btn primary" type="submit" id="unlockBtn">Unlock</button>
+        <small class="muted">${S.saved ? 'last saved ' + esc(new Date(S.saved).toLocaleString()) : ''}</small></p>
+      ${msgHTML()}
+      <details class="tips" style="margin-top:14px"><summary>Forgot the password?</summary>
+        <p>The page can't be opened without it: that's what keeps it private if the drive is lost. Look for a written-down
+          password or a printed copy of the page.</p>
+        ${S.local ? `<p>To start over with an empty page, use the button below. The locked file isn't deleted: it is renamed
+          in <code>${esc(S.file_path.replace(/[^\\/]+$/, ''))}</code>, in case the password turns up.</p>
+          <button class="btn" type="button" id="forget">Start over with an empty page…</button>`
+          : '<p>Starting over can only be done on the computer that runs the kit.</p>'}
+      </details></form>`;
+  document.getElementById('pw').focus();
+}
+
+async function reload() {
+  S = await json('/family.json');
+  return S;
+}
+
+// ---- Unlocked: read ----------------------------------------------------------------------------------------------------
+function valueHTML(type, v, card) {
+  if (type === 'tel') return `<a class="tel" href="tel:${esc(v.replace(/[^\d+*#,]/g, ''))}">${esc(v)}</a>`;
+  if (type === 'email') return `<a href="mailto:${esc(v)}">${esc(v)}</a>`;
+  if (type === 'date') { const d = new Date(v + 'T12:00'); return isNaN(d) ? esc(v) : esc(d.toLocaleDateString()); }
+  if (type === 'latlon') {
+    const ll = parseLatLon(v);
+    return ll ? `<a href="${esc(mapLink(ll, card))}">📍 Show on the map</a> <small class="muted">${esc(v)}</small>` : esc(v);
+  }
+  return esc(v);
+}
+
+function cardHTML(sec, it) {
+  const [first, ...rest] = sec.fields, title = it[first[0]] || '';
+  const sub = rest[0] && !['tel', 'textarea', 'latlon'].includes(rest[0][2]) ? it[rest[0][0]] : '';
+  const shown = rest.slice(sub ? 1 : 0).filter(f => String(it[f[0]] || '').trim());
+  return `<div class="card"><div class="t">${title ? esc(title) : '<span class="empty">(no name)</span>'}</div>
+    ${sub ? `<div class="s">${esc(sub)}</div>` : ''}
+    ${shown.length ? `<dl>${shown.map(f => `<dt>${esc(f[1])}</dt><dd>${valueHTML(f[2], String(it[f[0]]), title)}</dd>`).join('')}</dl>`
+      : `<div class="empty" style="margin-top:6px">not filled in yet</div>`}</div>`;
+}
+
+function renderView() {
+  const when = data.updated ? new Date(data.updated).toLocaleString() : '';
+  document.getElementById('printhead').textContent = `Printed ${new Date().toLocaleString()}` + (when ? ` · last changed ${when}` : '') +
+    ' · keep this page private';
+  const filled = SECTIONS.filter(s => (data[s.id] || []).length);
+  out.innerHTML = `<div class="bar noprint">
+      <button class="btn primary" type="button" id="edit">✏️ Edit</button>
+      <button class="btn" type="button" id="print">🖨️ Print</button>
+      <span class="grow"></span>
+      <button class="btn" type="button" id="chpw">Change password</button>
+      <button class="btn" type="button" id="lock">🔒 Lock</button></div>
+    <p class="muted noprint" style="margin:0"><small>Locks by itself after ${IDLE_MIN} minutes without use.${when ? ' Last changed ' + esc(when) + '.' : ''}</small></p>
+    ${msgHTML()}
+    <div id="chpwbox"></div>
+    ${filled.length || data.notes ? '' : '<div class="banner noprint"><h3>Nothing here yet</h3><p>Press <b>Edit</b> to fill it in. Start with an out-of-area contact and your meeting places.</p></div>'}
+    ${filled.map(s => `<section class="sec"><h2><span class="ico">${s.icon}</span>${esc(s.title)}</h2>
+      <div class="grid">${data[s.id].map(it => cardHTML(s, it)).join('')}</div></section>`).join('')}
+    ${data.notes ? `<section class="sec"><h2><span class="ico">📝</span>Notes</h2><div class="notes">${esc(data.notes)}</div></section>` : ''}`;
+}
+
+// ---- Unlocked: edit ----------------------------------------------------------------------------------------------------
+function inputHTML(sid, i, [k, label, type = 'text', extra], v) {
+  const id = `f-${sid}-${i}-${k}`, attrs = `class="in" id="${id}" data-s="${sid}" data-i="${i}" data-k="${k}"`;
+  v = v == null ? '' : String(v);
+  let ctl;
+  if (type === 'textarea') ctl = `<textarea ${attrs} rows="2">${esc(v)}</textarea>`;
+  else if (type === 'select') ctl = `<select ${attrs}>${[...new Set([...extra, v])].map(o =>
+      `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+  else if (type === 'latlon') ctl = `<input ${attrs} type="text" inputmode="decimal" value="${esc(v)}" placeholder="e.g. 29.76043, -95.36980">`;
+  else ctl = `<input ${attrs} type="${type === 'date' ? 'date' : type === 'tel' ? 'tel' : type === 'email' ? 'email' : 'text'}"
+      value="${esc(v)}"${typeof extra === 'string' ? ` placeholder="${esc(extra)}"` : ''}>`;
+  const wide = type === 'textarea' ? ' class="wide"' : '';
+  const help = type === 'latlon' ? '<small class="muted">Latitude, longitude. In most phone map apps: press and hold the spot, then copy the numbers.</small>' : '';
+  return `<div${wide}><label class="f" for="${id}">${esc(label)}</label>${ctl}${help}</div>`;
+}
+
+function renderEdit() {
+  out.innerHTML = `${msgHTML()}
+    ${SECTIONS.map(s => `<section class="sec"><h2><span class="ico">${s.icon}</span>${esc(s.title)}</h2>
+      ${s.hint ? `<p class="hint">${esc(s.hint)}</p>` : ''}
+      ${(data[s.id] || []).map((it, i) => `<fieldset class="ed"><button class="btn rm" type="button" data-rm="${s.id}" data-i="${i}">Remove</button>
+        <div class="cols">${s.fields.map(f => inputHTML(s.id, i, f, it[f[0]])).join('')}</div></fieldset>`).join('')}
+      <button class="btn" type="button" data-add="${s.id}">＋ Add ${esc(s.one)}</button></section>`).join('')}
+    <section class="sec"><h2><span class="ico">📝</span>Notes</h2>
+      <textarea class="in" data-notes rows="6" aria-label="Notes" placeholder="Anything else: the plan if a hurricane is coming, who picks up the kids, radio channels…">${esc(data.notes || '')}</textarea></section>
+    <div class="savebar"><button class="btn primary" type="button" id="save">💾 Save</button>
+      <button class="btn" type="button" id="cancel">Cancel</button>
+      <small class="muted" id="dirtynote">${dirty ? 'Unsaved changes' : ''}</small></div>`;
+}
+
+function render() {
+  if (!data) return renderLocked();
+  editing ? renderEdit() : renderView();
+}
+
+// ---- Actions -----------------------------------------------------------------------------------------------------------
+async function post(url, body) {
+  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const d = await r.json().catch(() => ({error: 'The kit did not answer. Is it still running?'}));
+  if (!r.ok) throw Object.assign(new Error(d.error || 'Could not save.'), {status: r.status});
+  return d;
+}
+
+async function save(newRing) {
+  data.updated = new Date().toISOString();
+  const file = C.seal(newRing || ring, data);
+  const d = await post('/family.json', {file, proof: ring ? ring.write : null, rev});
+  rev = d.rev; S.exists = true; S.saved = d.saved;
+  if (newRing) ring = newRing;
+  dirty = false;
+}
+
+function lock(text) {
+  ring = null; data = null; editing = false; dirty = false;
+  msg = text ? {text} : null;
+  reload().then(render, render);
+}
+
+function busy(btn, label) { if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = label; } }
+function unbusy(btn) { if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || btn.textContent; } }
+
+document.addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, btn = f.querySelector('button[type=submit]');
+  if (f.id === 'setup') {
+    const a = document.getElementById('pw1').value, b = document.getElementById('pw2').value;
+    if (a.length < 8) { msg = {text: 'Use at least 8 characters (three or four words is best).'}; return render(); }
+    if (a !== b) { msg = {text: 'The two passwords are different.'}; return render(); }
+    busy(btn, 'Locking…');
+    try {
+      const r = await C.newRing(a);
+      data = starter(); rev = 0;
+      await save(r);
+      ring = r; editing = true; msg = {ok: true, text: 'Created. Fill in what you can and press Save; you can always add more later.'};
+    } catch (err) { data = null; ring = null; msg = {text: err.message}; }
+    render();
+  } else if (f.id === 'unlock') {
+    busy(btn, C.fast ? 'Unlocking…' : 'Unlocking… (a few seconds on a phone)');
+    try {
+      await reload();  // the newest save, in case another device changed it
+      const pw = document.getElementById('pw').value;
+      const o = await C.open(pw, S.file);
+      ring = o.ring; data = Object.assign(starter(), {places: [], home: []}, o.data); rev = S.rev; msg = null; lastActive = Date.now();
+    } catch (err) {
+      msg = {text: err.wrongPassword ? 'That password is not right. Check Caps Lock and try again.' : err.message};
+    }
+    render();
+  } else if (f.id === 'chpwform') {
+    const a = document.getElementById('npw1').value, b = document.getElementById('npw2').value, box = document.getElementById('chpwmsg');
+    if (a.length < 8) { box.textContent = 'Use at least 8 characters.'; return; }
+    if (a !== b) { box.textContent = 'The two passwords are different.'; return; }
+    busy(btn, 'Locking with the new password…');
+    try { await save(await C.newRing(a)); msg = {ok: true, text: 'Password changed. Use the new one from now on (and update the written-down copy).'}; render(); }
+    catch (err) { box.textContent = err.message; unbusy(btn); }
+  }
+});
+
+document.addEventListener('click', async e => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  if (t.id === 'edit') { editing = true; msg = null; render(); }
+  else if (t.id === 'print') window.print();
+  else if (t.id === 'lock') lock();
+  else if (t.id === 'cancel') {
+    if (dirty && !confirm('Throw away the changes you made?')) return;
+    // go back to what is saved: unlock the saved file again with the keys we hold
+    try { await reload(); const o = await openWithRing(); data = o; rev = S.rev; } catch (_) {}
+    editing = false; dirty = false; msg = null; render();
+  } else if (t.id === 'save') {
+    busy(t, 'Saving…');
+    try { await save(); editing = false; msg = {ok: true, text: 'Saved.'}; render(); }
+    catch (err) { msg = {text: err.message}; render(); }
+  } else if (t.dataset.add) {
+    (data[t.dataset.add] = data[t.dataset.add] || []).push({});
+    dirty = true; render();
+    const sec = t.dataset.add, i = data[sec].length - 1, first = document.querySelector(`[data-s="${sec}"][data-i="${i}"]`);
+    if (first) first.focus();
+  } else if (t.dataset.rm) {
+    const list = data[t.dataset.rm], it = list[+t.dataset.i];
+    if (Object.values(it).some(v => String(v || '').trim()) && !confirm('Remove this card?')) return;
+    list.splice(+t.dataset.i, 1); dirty = true; render();
+  } else if (t.id === 'chpw') {
+    document.getElementById('chpwbox').innerHTML = `<form class="lockbox noprint" id="chpwform" style="margin:12px 0" autocomplete="off">
+      <h2>Change password</h2>
+      <label class="f" for="npw1">New password</label><input class="in" id="npw1" type="password" autocomplete="new-password" required>
+      <label class="f" for="npw2">Type it again</label><input class="in" id="npw2" type="password" autocomplete="new-password" required>
+      <p><button class="btn primary" type="submit">Change password</button> <button class="btn" type="button" id="chpwcancel">Cancel</button></p>
+      <div class="err" id="chpwmsg"></div></form>`;
+    document.getElementById('npw1').focus();
+  } else if (t.id === 'chpwcancel') document.getElementById('chpwbox').innerHTML = '';
+  else if (t.id === 'forget') {
+    if (!confirm('Start over with an empty Family page?\n\nThe locked page is renamed (not deleted), but without its password it can\'t be opened.')) return;
+    try { S = await post('/family/forget', {}); msg = {ok: true, text: 'The old page was put aside. Set up a new one below.'}; }
+    catch (err) { msg = {text: err.message}; }
+    render();
+  }
+});
+
+async function openWithRing() {
+  // Cancel: re-read the saved file without asking for the password again (same salt and rounds -> same keys)
+  const o = await C.openWithRing(ring, S.file);
+  return Object.assign(starter(), {places: [], home: []}, o);
+}
+
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (!data || !editing) return;
+  if ('notes' in el.dataset) data.notes = el.value;
+  else if (el.dataset.s) data[el.dataset.s][+el.dataset.i][el.dataset.k] = el.value;
+  else return;
+  dirty = true;
+  const n = document.getElementById('dirtynote');
+  if (n) n.textContent = 'Unsaved changes';
+});
+document.addEventListener('change', e => { if (e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', {bubbles: true})); });
+
+// ---- Lock again when nobody is using it ---------------------------------------------------------------------------------
+['pointerdown', 'keydown', 'input', 'scroll'].forEach(ev => addEventListener(ev, () => lastActive = Date.now(), {passive: true}));
+async function idleCheck() {
+  if (!data || Date.now() - lastActive < IDLE_MIN * 60000) return;
+  if (dirty) {  // don't lose what someone typed: save it, then lock
+    try { await save(); } catch (err) { msg = {text: 'Could not save before locking: ' + err.message}; lastActive = Date.now(); return render(); }
+  }
+  lock(`Locked after ${IDLE_MIN} minutes without use.`);
+}
+setInterval(idleCheck, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) idleCheck(); });
+addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+const ready = window.fzKit ? fzKit.ready : Promise.resolve();
+Promise.all([reload(), ready]).then(render, () => out.innerHTML =
+  '<p class="muted">Could not load the Family page. If you just updated the kit, close its window and start it again.</p>');
+</script>
+</body>
+</html>

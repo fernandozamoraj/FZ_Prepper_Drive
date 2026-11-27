@@ -25,6 +25,8 @@
 !/home/media.js
 !/home/nav.js
 !/home/viewer_settings.js
+!/home/family-crypto.js
+!/tests/*.py
 !/map-viewer/index.html
 !/map-viewer/style/style.json
 !/routing/config.yml
@@ -37,6 +39,9 @@
 !/docs/*.md
 
 # Never, even inside allowed folders
+# The Family page (encrypted, but personal): it travels on the drive, never to GitHub
+/family/
+/kit-settings.json
 *.bak-*
 .DS_Store
 ._*

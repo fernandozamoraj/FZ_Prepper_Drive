@@ -179,3 +179,21 @@
   would upload the files); copying files into the kit (doubles the space on a 256 GB stick).
 - Folders on the kit's own drive are stored relative to the kit (Windows changes drive letters between PCs).
 
+## 2026-11-27: Family page encrypted in the browser, with HMAC-SHA256 only
+- **Chosen:** the browser encrypts and decrypts; the server stores one opaque file. Format `fz-family-1`: PBKDF2-HMAC-SHA256
+  (600,000 rounds, per OWASP) → keys by HMAC; HMAC-SHA256 in counter mode as the stream; encrypt-then-MAC tag over the
+  format, rounds, salt, nonce and ciphertext. Plain JavaScript (`home/family-crypto.js`, ~170 lines), checked against
+  Python's `hashlib`/`hmac` in `tests/test_family.py`.
+- **Why not AES-GCM via `crypto.subtle`:** browsers only offer `crypto.subtle` on secure pages (https or localhost).
+  Phones reach the kit at `http://192.168...`, so it would be missing exactly where the page matters most. Writing AES
+  by hand is error-prone; SHA-256 is short and easy to check against a reference. HMAC as a PRF in counter mode with
+  encrypt-then-MAC is a standard, well-understood construction.
+- **Why not encrypt on the server (Python):** the portable Python has no AES, and sending the password over plain
+  http on the Wi-Fi is worse than never sending it.
+- **Why not https:** a self-signed certificate means a scary warning on every phone, which family members would have
+  to click through in an emergency.
+- **Saves need the password:** a SHA-256 verifier of a password-derived write key is stored, so a guest on the Wi-Fi
+  can't overwrite or wipe the page. The first setup and "start over" are limited to the computer that runs the kit.
+- **Trade-off:** a forgotten password can't be recovered. The page says so before setup and suggests a written-down
+  password and a printed copy.
+

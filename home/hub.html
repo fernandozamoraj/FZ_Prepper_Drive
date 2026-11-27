@@ -91,6 +91,11 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
       <p>Install programs without internet: VLC, Calibre, Thorium, SumatraPDF, Firefox, 7-Zip and more, for Windows, Mac and Linux.</p>
       <span class="status"><span class="dot" id="softwaredot"></span><span id="softwarecount">checking…</span></span>
     </a>
+    <a class="card" href="/family">
+      <div class="ico">👪</div><h2>Family emergency page</h2>
+      <p>Your own contacts, meeting places, medicines, doctors, insurance and shut-offs. Locked with a password; printable.</p>
+      <span class="status"><span class="dot" id="familydot"></span><span id="familystate">checking…</span></span>
+    </a>
     <a class="card" href="#guides">
       <div class="ico">📄</div><h2>PDF guides</h2>
       <p>Army survival manuals, FEMA, water disinfection, home canning, Where There Is No Doctor and more.</p>
@@ -109,7 +114,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
     <b>Your own movies and books:</b> add their folders on the <a href="/settings">⚙️ Settings</a> page.<br>
     <b>Bible:</b> type a verse phrase in the search box above, or pick the Bible group in the library to search only the Bible.</p>
 
-  <footer>Offline prepper kit v1.15.0 · started with <code>runhomeintra</code></footer>
+  <footer>Offline prepper kit v1.16.0 · started with <code>runhomeintra</code></footer>
 </div>
 <script>
 const host = location.hostname, proto = location.protocol;
@@ -153,6 +158,11 @@ for (const [name, [count, unit]] of Object.entries(modules)) {
       : 'not installed (optional): open to see how';
   }).catch(() => {});
 }
+
+fetch('/family.json', {cache: 'no-store'}).then(r => r.json()).then(d => {
+  document.getElementById('familydot').className = 'dot ' + (d.exists ? 'up' : '');
+  document.getElementById('familystate').textContent = d.exists ? '🔒 locked: open to unlock' : 'not set up yet: open to start';
+}).catch(() => {});
 
 (async () => {
   try {

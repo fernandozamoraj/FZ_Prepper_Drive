@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.15.0)
+# FZ Prepper Drive (offline prepper kit v1.16.0)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
@@ -50,8 +50,8 @@ Turn off sleep while it runs (Windows: Settings → System → Power).
 |---|---|
 | `./kit.sh start` | `kit.bat start` |
 
-Your browser opens the **Home page** (http://localhost:8000) with search, the library (port 8080), the Bible and
-the map (port 8090); parts you didn't install show as not running. Keep the window open while you use it;
+Your browser opens the **Home page** (http://localhost:8000) with search, the library (port 8080), the Bible, the map (port 8090) and
+your own **Family emergency page**; parts you didn't install show as not running. Keep the window open while you use it;
 **Ctrl+C** or closing the window stops everything. Phones and tablets on the same Wi-Fi use the address it prints
 (e.g. `http://192.168.1.20:8000`). If another program already uses port 8080 or 8090, the library or map moves to the next
 free port (the window says which) and the Home page links follow; start from the Home page and you never need to know.
@@ -150,6 +150,25 @@ folder for Movies or for Books (type the path or **Browse…**). The kit remembe
 through them every time it starts; they show up on the Movies and Books pages for every device on the Wi-Fi.
 Phones can see the list but can't change it. Press **Look again** after adding files.
 
+### Family emergency page (your own information, locked)
+Open **👪 Family** in the header bar (`http://localhost:8000/family`). The first time, on the computer that runs the kit,
+choose a password (three or four random words work well) and fill in what you can: emergency contacts (put an
+out-of-area contact first), meeting places (with a map location, they open on the offline map with directions),
+everyone's allergies, medicines and blood type, doctors and pharmacy, insurance numbers, where the shut-offs are, pets,
+where the important documents are, and notes. **Print** gives a paper copy; keep one with the drive.
+
+- **Locked in the browser.** The page encrypts everything before it leaves the browser; the kit stores only the locked
+  file `family/family.enc.json` and never sees the password. Lose the drive, and nobody can read it without the
+  password. Forget the password, and **nobody can recover it**, so write it down and keep it somewhere safe.
+- **Phones too:** any device on the Wi-Fi can unlock, read and (with the password) edit it. It locks itself after 10
+  minutes without use. Two devices editing at once: the second save is refused with a note to reload, not overwritten.
+- **Earlier saves:** the last 5 are kept as `family/family.enc.json.1` … `.5` (still locked with the password they had).
+- **Forgot the password?** On the computer that runs the kit: *Forgot the password? → Start over*. The old file is
+  renamed (`family.enc.json.forgotten-DATE`), never deleted.
+- **Never in git** (`.gitignore`), but **copied to the drive** by `make-drive`. If the page was changed on the drive
+  later than on this computer, `make-drive` keeps the drive's copy and prints where to copy it back.
+- Test: `python3 tests/test_family.py` (needs `node`).
+
 ## What you need (manual)
 
 1. **Disk:** see the quick-start table (everything: about **160 GB** plus **~20 GB** of build files) (`build/`). Use an internal disk
@@ -203,6 +222,8 @@ Phones can see the list but can't change it. Press **Look again** after adding f
 | `bin/catalog.py` | yes | the lists of optional books, audiobooks, movies and software |
 | `home/books.html`, `home/movies.html`, `home/movies-add.html`, `home/software.html`, `home/media.css`, `home/media.js` | yes | Books, Movies (+ how to add more) and Software pages |
 | `books/`, `audiobooks/`, `movies/`, `software/` | no | optional modules: downloaded |
+| `home/family.html`, `home/family-crypto.js`, `tests/test_family.py` | yes | Family emergency page, its lock, its test |
+| `family/` | no | your locked Family page and its earlier saves (copied to the drive, never to git) |
 | `home/`, `map-viewer/index.html`, `map-viewer/style/style.json` | yes | web pages: hub, Bible search, library home page, header bar, map |
 | `routing/config.yml`, `routing/make_places.py` | yes | GraphHopper config, town list builder |
 | `bible/build-bible.py` | yes | builds the Bible library |

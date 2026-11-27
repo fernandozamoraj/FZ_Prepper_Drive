@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tests/test_uploads.py (offline prepper kit v1.19.0): documents added on the Books page (bin/intranet.py /uploads).
+"""tests/test_uploads.py (offline prepper kit v1.20.1): documents added on the Books page (bin/intranet.py /uploads).
 
     python3 tests/test_uploads.py        (uses a temporary folder, not uploads/)
 
@@ -161,6 +161,24 @@ def main():
         check(st == 200 and not [m for c in d["categories"] for m in c["movies"] if m.get("key") == "my-movies/Grandma 80th birthday.mp4"]
               and any(f.endswith("Grandma 80th birthday.mp4") for f in os.listdir(os.path.join(movies, ".trash"))),
               "this computer removes a video into movies/.trash")
+
+        # ---- copied in by hand (the "Did you know?" note): shows up on the next page load, no restart ----
+        intranet.make_drop_folders()
+        check(all(os.path.isdir(os.path.join(tmp, c)) for c in intranet.UPLOAD_CATS) and
+              os.path.isdir(os.path.join(movies, "my-movies")), "start-up makes every category folder (documents and movies)")
+        note = os.path.join(tmp, "HOW TO ADD FILES.txt")
+        check(os.path.isfile(note) and "survival" in open(note).read() and
+              os.path.isfile(os.path.join(movies, "HOW TO ADD FILES.txt")), "a HOW TO ADD FILES.txt in uploads/ and movies/")
+        shutil.copy(os.path.join(tmp, "survival", "Water Purification.pdf"), os.path.join(tmp, "food", "Canning by hand.pdf"))
+        with open(os.path.join(movies, "my-movies", "Copied by hand.mp4"), "wb") as f:
+            f.write(MP4)
+        st, d, _ = req("GET", "/uploads.json")
+        titles = [i["title"] for c in d["cats"] for i in c["items"]]
+        check("Canning by hand" in titles and "HOW TO ADD FILES" not in titles, "a PDF copied by hand shows on Books (the note doesn't)")
+        check(d["kit_name"] and d["folder"] == tmp, "Books gets the folder path for the note")
+        st, d, _ = req("GET", "/movies.json")
+        mine = [m["title"] for c in d["categories"] for m in c["movies"] if m.get("key")]
+        check("Copied by hand" in mine and d["kit_name"], "a video copied by hand shows on Movies")
     finally:
         srv.shutdown()
         shutil.rmtree(kit, ignore_errors=True)

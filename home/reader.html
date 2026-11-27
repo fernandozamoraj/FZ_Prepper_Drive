@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reader</title>
+<!-- Offline prepper kit v1.20.1: e-book reader (EPUB, MOBI, AZW3, FB2, CBZ) at /reader?book=/files/...
+     Uses foliate-js (home/reader-lib/, installed by `kit setup-reader`). intranet.py sends this page with a
+     Content-Security-Policy that allows only the kit's own script files: scripts inside a book never run.
+     No inline <script> here for the same reason: the code is home/reader.js. -->
+<link rel="stylesheet" href="/media.css">
+<link rel="stylesheet" href="/reader.css">
+</head>
+<body class="reader">
+<script src="/nav.js"></script>
+<div class="rbar" id="rbar">
+  <button class="rbtn" type="button" id="tocbtn" title="Contents" aria-label="Contents" disabled>☰</button>
+  <div class="rtitle"><b id="rtitle">Opening…</b><small id="rpos"></small></div>
+  <button class="rbtn" type="button" id="smaller" title="Smaller text" aria-label="Smaller text">A−</button>
+  <button class="rbtn" type="button" id="bigger" title="Bigger text" aria-label="Bigger text">A+</button>
+  <button class="rbtn" type="button" id="theme" title="Light / sepia / dark" aria-label="Change colors">◐</button>
+  <a class="rbtn" id="dl" href="#" title="Download the book" aria-label="Download the book">⬇</a>
+</div>
+<div class="rmain" id="rmain">
+  <button class="rside" type="button" id="prev" aria-label="Previous page">‹</button>
+  <div class="rview" id="rview"><p class="rmsg" id="rmsg">Opening the book…</p></div>
+  <button class="rside" type="button" id="next" aria-label="Next page">›</button>
+</div>
+<input type="range" id="rslider" min="0" max="1" step="any" value="0" aria-label="Position in the book" hidden>
+<aside class="rtoc" id="rtoc" hidden><div class="rtochead"><b>Contents</b><button class="rbtn" type="button" id="tocclose" aria-label="Close contents">✕</button></div>
+  <div id="toclist"></div></aside>
+<script type="module" src="/reader.js"></script>
+</body>
+</html>

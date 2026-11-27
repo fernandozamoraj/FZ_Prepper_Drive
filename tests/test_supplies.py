@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tests/test_supplies.py (offline prepper kit v1.19.0): the Supplies page's item list and its server side.
+"""tests/test_supplies.py (offline prepper kit v1.20.1): the Supplies page's item list and its server side.
 
     python3 tests/test_supplies.py        (needs node; uses a temporary folder, not family/)
 

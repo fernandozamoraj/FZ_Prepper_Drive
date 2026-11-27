@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.19.0).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.20.1).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -39,7 +39,7 @@ import kitplatform  # noqa: E402
 import catalog  # noqa: E402  (books, audiobooks, movies, software)
 import mimetypes  # noqa: E402
 
-VERSION = "1.19.0"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
+VERSION = "1.20.1"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
 KIT = kitplatform.KIT
 GUIDES = os.path.join(KIT, "guides")
 PORTS = {"library": 8080, "maps": 8090}
@@ -396,7 +396,40 @@ def uploads_json(local):
                           "ext": os.path.splitext(f)[1][1:].lower(), "mb": round(os.path.getsize(p) / 1e6, 1),
                           "url": "/files/uploads/" + urllib.parse.quote(key)})
         cats.append({"id": cid, "name": cname, "items": items})
-    return {"local": local, "cats": cats, "ext": UPLOAD_EXT, "max_mb": UPLOAD_MAX >> 20, "folder": UPLOADS}
+    return {"local": local, "cats": cats, "ext": UPLOAD_EXT, "max_mb": UPLOAD_MAX >> 20, "folder": UPLOADS,
+            "kit_name": os.path.basename(KIT)}
+
+
+DROP_NOTE = """HOW TO ADD FILES (offline prepper kit)
+
+Copy {what} into the folder that fits, here in "{here}":
+{folders}
+
+They show up on the {page} page the next time it is opened or reloaded: no restart needed.
+Files must be inside one of these folders (not loose here), and one of these kinds:
+{ext}
+
+You can also add them one at a time from any phone or computer on the Wi-Fi with "{button}" on the {page} page.
+"""
+
+
+def make_drop_folders():
+    """Category folders for the Books and Movies pages, plus a how-to note in each place, so people copying files
+    straight onto the drive (Finder, File Explorer) see where they go. Never fails the start (a read-only drive)."""
+    for kind, page, button, what in (("docs", "Books", "Add a document", "PDFs and e-books"),
+                                     ("movies", "Movies", "Add a video", "videos")):
+        K = upload_kind(kind)
+        try:
+            for cat in K["cats"]:
+                os.makedirs(os.path.join(K["root"], cat), exist_ok=True)
+            note = os.path.join(K["root"], "HOW TO ADD FILES.txt")
+            if not os.path.exists(note):
+                with open(note, "w", encoding="utf-8", newline="\r\n") as f:  # Windows line ends: Notepad reads it too
+                    f.write(DROP_NOTE.format(what=what, here=os.path.basename(K["root"]), page=page, button=button,
+                                             folders="\n".join(f"  {c:<12} {n}" for c, n in K["cats"].items()),
+                                             ext=", ".join(e[1:].upper() for e in K["ext"])))
+        except OSError:
+            pass
 
 
 def file_url(path):
@@ -486,7 +519,7 @@ def movies_json(local=False):
                      "movies": [{"id": None, "title": m["title"], "year": None, "minutes": None,
                                  "license": m["where"] or "", "url": extra_url("movies", n, m["rel"]),
                                  "mb": round(m["mb"])} for m in f["items"]]})
-    return {"cmd": KIT_CMD, "folder": catalog.MOVIES_DIR, "categories": cats, "local": local,
+    return {"cmd": KIT_CMD, "folder": catalog.MOVIES_DIR, "kit_name": os.path.basename(KIT), "categories": cats, "local": local,
             "upload": {"cats": up["cats"], "ext": up["ext"], "max_mb": up["max"] >> 20}}
 
 
@@ -518,9 +551,25 @@ def software_json():
     return {"cmd": KIT_CMD, "os": oses, "stale_days": catalog.STALE_DAYS}
 
 
+# Sent with the reader page. Books are shown in same-origin frames that foliate-js must let run scripts (a WebKit bug),
+# and frames made from blob: URLs inherit this policy, so a script inside an e-book (an upload, say) never runs.
+READER_CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' blob: data:; "
+              "font-src 'self' blob: data:; media-src 'self' blob:; frame-src 'self' blob:; connect-src 'self'; "
+              "object-src 'none'; base-uri 'none'; form-action 'none'")
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
+    csp = None
+
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=KIT, **kw)
+
+    def end_headers(self):
+        if self.csp:
+            self.send_header("Content-Security-Policy", self.csp)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.csp = None
+        super().end_headers()
 
     def do_GET(self):
         path = urllib.parse.unquote(self.path.split("?", 1)[0])
@@ -557,6 +606,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                  "/supplies": "supplies.html", "/supplies-data.js": "supplies-data.js"}
         if path == "/supplies.json":
             return self.send_json(supplies_load())
+        if path in ("/reader", "/reader/"):  # e-book reader: only the kit's own scripts may run (books can carry scripts)
+            self.csp = READER_CSP
+            self.path = "/home/reader.html"
+            return super().do_GET()
+        if path in ("/reader.js", "/reader.css"):
+            self.path = "/home" + path
+            return super().do_GET()
+        if path.startswith("/reader-lib/"):  # foliate-js, installed by `kit setup-reader` (not in git)
+            if not re.fullmatch(r"/reader-lib/(vendor/)?[a-z0-9-]+\.js", path):
+                return self.not_found()
+            self.path = "/home" + path
+            return super().do_GET()
         if path == "/uploads.json":
             return self.send_json(uploads_json(self.is_local()))
         if path.rstrip("/") in pages:
@@ -963,6 +1024,7 @@ def main():
     if any(catalog.load_settings()["folders"].values()):
         print(f"  Looking through your own folders ({os.path.basename(catalog.SETTINGS_FILE)})...")
     threading.Thread(target=scan_folders, daemon=True).start()
+    make_drop_folders()
     start_services()
     # Stop everything on: kill (SIGTERM), closing the Mac Terminal window (SIGHUP),
     # Ctrl+Break / closing the Windows console window (SIGBREAK). Ctrl+C arrives as KeyboardInterrupt.

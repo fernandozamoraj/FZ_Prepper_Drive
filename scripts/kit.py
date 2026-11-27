@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""kit.py (offline prepper kit v1.19.0): download and rebuild everything in the kit, on macOS or Windows.
+"""kit.py (offline prepper kit v1.20.1): download and rebuild everything in the kit, on macOS or Windows.
 
 Run it through the wrappers, which also fetch a portable Python the first time if needed:
     macOS:   ./kit.sh <command> [options]
@@ -23,7 +23,8 @@ Optional modules (not part of install all; pick what you want, see README "Books
 
 Single steps (each is safe to re-run; finished work is skipped and downloads resume):
     setup         programs the kit carries: portable Python/Java/kiwix-serve for Windows and Mac (runtime/),
-                   Planetiler and GraphHopper jars, MapLibre, map fonts and icons
+                   Planetiler and GraphHopper jars, MapLibre, map fonts and icons, the e-book reader
+    setup-reader   only the e-book reader (Read button on the Books page; ~260 KB)
     download       content: Kiwix libraries (kiwix/*.zim) and PDF guides (guides/)
     build-map      whole-US map tiles maps/us.pmtiles (downloads build/us.osm.pbf, ~12 GB, first)
     build-routing  offline directions graph routing/graph-us/ from build/us.osm.pbf
@@ -51,7 +52,7 @@ import time
 import urllib.parse
 import zipfile
 
-VERSION = "1.19.0"
+VERSION = "1.20.1"
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(KIT, "bin"))  # kitplatform (python -I leaves script dirs out of sys.path)
@@ -79,6 +80,26 @@ WEB_LIBS = [
     ("https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js", "map-viewer/lib/pmtiles.js"),
 ] + [(f"https://openmaptiles.github.io/osm-bright-gl-style/{f}", f"map-viewer/style/{f}")
      for f in ("sprite.json", "sprite.png", "sprite@2x.json", "sprite@2x.png")]
+# E-book reader (home/reader.html): foliate-js (MIT) at a pinned commit, each file checked against its sha256.
+# Only what EPUB, MOBI/AZW3, FB2 and CBZ need (no PDF.js: browsers show PDFs themselves; no search, no text-to-speech).
+READER_COMMIT = "78914aef4466eb960965702401634c2cb348e9b1"  # 2026-05-01
+READER_BASE = f"https://cdn.jsdelivr.net/gh/johnfactotum/foliate-js@{READER_COMMIT}"
+READER_LIBS = [
+    ("comic-book.js", "7f3bf77561ca77300d5244015fcb1f73805787db246928074dc49fb56c88762e"),
+    ("epub.js", "dfe347495039e9b5991478986ec6b7713cf9efbcd8f475a77ef7b967c5176298"),
+    ("epubcfi.js", "e1a688ad5c84bf31f33cef467f92c7a6d060a0f17ec37c1d3c048e9c7b1cf645"),
+    ("fb2.js", "09a7890bf191f1b6c6dd435fae2868b86c75e73e00731b0051c02f2a998a180a"),
+    ("fixed-layout.js", "7aee1d15d8e0479b8a6c59a20304b250dafc4c7dc158147a2b2c6bed9e180b4c"),
+    ("mobi.js", "016526df13a9f11ee6671a8c74346e1cf41fe6bdfe50165fdcbf744f015694f3"),
+    ("overlayer.js", "d3d3396e3083277ccbd4f17c407621159b22a407107e43ce75ca3014578094fb"),
+    ("paginator.js", "51cec81572d5d182e231fe68ce9c3b5489a0976b36172060516336ba893565ea"),
+    ("progress.js", "544f5e90babc0cb31c5caf971a5f06dd6249ec06600cb62f672fa7179811fde1"),
+    ("text-walker.js", "4ad740ab6142b5be428700ef4d270253cef6649cf6e047ae7d2698a7aec65e92"),
+    ("vendor/fflate.js", "e63bcc21f83a43e5f71d5cbefd351ff4d4dbd57bef8b29ad65c8bd65752f6e6b"),
+    ("vendor/zip.js", "2a0d43157e4a447c6e43351225758795b75a33e8dfec10c6767248df2182949a"),
+    ("view.js", "e0093af921feb03bb58fb51aeedc321fa108a4158d215f6913ecf7925415c945"),
+    ("LICENSE", "b621ffc351fe263bc9b09dd0bc1c9332fda9c462a3904c1e4f0b4d3236b9c28c"),
+]
 FONTS_ZIP = "https://github.com/openmaptiles/fonts/releases/download/v2.0/noto-sans.zip"
 FONTS = ("Noto Sans Regular", "Noto Sans Bold", "Noto Sans Italic")  # the ones style.json uses
 
@@ -432,6 +453,24 @@ def setup_platform(name, force):
     tidy_runtime(rt)
 
 
+def setup_reader(force=False):
+    """home/reader-lib/: the e-book reader's library (foliate-js), ~260 KB, every file checked."""
+    for rel, sha in READER_LIBS:
+        dest = kit_path("home", "reader-lib", *rel.split("/"))
+        if os.path.exists(dest) and not force:
+            h = hashlib.sha256(open(dest, "rb").read()).hexdigest()
+            if h == sha:
+                continue
+            os.remove(dest)  # changed or damaged: fetch it again
+        get(f"{READER_BASE}/{rel}", dest, quiet=True) or die(f"download failed: {READER_BASE}/{rel}")
+        check_sum(dest, sha)
+    say(f"OK  home/reader-lib (e-book reader, foliate-js {READER_COMMIT[:7]}, {len(READER_LIBS)} files checked)")
+
+
+def cmd_setup_reader(a):
+    setup_reader(a.force)
+
+
 def cmd_setup(a):
     names = list(PLATFORMS) if a.platform == "all" else (
         [current_platform()] if a.platform == "current" else a.platform.split(","))
@@ -467,6 +506,7 @@ def cmd_setup(a):
         missing = [f for f in FONTS if not os.path.isdir(os.path.join(fonts, f))]
         missing and die(f"fonts missing from {FONTS_ZIP}: {missing}")
         say("OK  map-viewer/fonts (Noto Sans)")
+    setup_reader(a.force)
     shutil.rmtree(kit_path("build", "tmp-setup"), ignore_errors=True)
     say("=== setup done ===")
 
@@ -1531,6 +1571,10 @@ def main():
                    "or a list such as win-x64,mac-arm64,mac-x64")
     s.add_argument("--force", action="store_true", help="download again even if present")
     s.set_defaults(fn=cmd_setup)
+
+    s = sub.add_parser("setup-reader", help="only the e-book reader for the Books page (~260 KB)")
+    s.add_argument("--force", action="store_true", help="download again even if present")
+    s.set_defaults(fn=cmd_setup_reader)
 
     s = sub.add_parser("download", help="Kiwix libraries and PDF guides")
     s.add_argument("--set", default="all", help="all (= core,programming,pdfs) or a list of core, programming, "

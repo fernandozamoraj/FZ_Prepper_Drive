@@ -1,5 +1,34 @@
 # Changelog: offline prepper kit
 
+## 1.20.1 (2026-11-27)
+- **"💡 Did you know?"** on the Books and Movies pages: copy many files at once straight into
+  `offline-prepper-kit/uploads/<folder>/` or `offline-prepper-kit/movies/<folder>/` (on the thumb drive or the
+  computer running the kit) and they show up the next time the page is opened, no upload and no restart. A fold-out
+  lists every folder name, the file kinds, and the full path on this kit.
+- The hub creates all those category folders when it starts, and a `HOW TO ADD FILES.txt` in `uploads/` and `movies/`
+  (Windows line endings), so people browsing the drive in Finder or File Explorer see where files go.
+- Tested: 6 new checks in `tests/test_uploads.py` (folders and notes made at start, a PDF and a video copied by hand
+  appear on the next page load, the note itself is never listed) and both notes in the browser pane at phone width.
+
+## 1.20.0 (2026-11-27)
+- **E-book reader in the browser** (`/reader`, **📖 Read** on the Books page for the kit's EPUBs and for uploaded EPUB,
+  MOBI, AZW3, FB2 and CBZ files): pages turn with the ‹ › buttons, a tap or swipe on the page edges, or the arrow keys;
+  ☰ contents, A− / A+ text size, ◐ light / sepia / dark, a position slider and "Chapter · %" at the top; ⬇ downloads
+  the book. Remembers the page in each book and the text size and colors on each device. Works on phones over the
+  Wi-Fi with no app. Copy-protected Kindle books can't be opened (the page says so and offers the download).
+- Built on **foliate-js** (MIT, commit 78914ae), installed by the new **`kit setup-reader`** (also part of `setup`):
+  13 files plus its license (~230 KB) from jsDelivr, each checked against a pinned sha256 in `scripts/kit.py`, into
+  `home/reader-lib/` (not in git; copied to the drive). No PDF.js (browsers show PDFs), no search, no text-to-speech.
+- **Scripts inside books never run.** foliate-js shows pages in same-origin frames that have to allow scripts (a
+  WebKit bug), so the hub sends the reader page with a Content-Security-Policy allowing only the kit's own script
+  files; book frames inherit it. The page's own code is in `home/reader.js` (no inline scripts).
+- Tested: `tests/test_reader.py` (policy on the reader page only, no inline scripts, library routes, installed files
+  match the pinned checksums) and the Family, Supplies and Uploads tests; in the browser pane: Pride and Prejudice
+  (cover, contents with 63 entries, page turns, text size, theme, reopening at the same page after reload), an FB2 and
+  a CBZ, a hostile EPUB whose inline script, script file and onerror handler were all blocked by the policy (page title,
+  storage and the Supplies data unchanged), no book / another site's address refused. Not tried: a real MOBI or AZW3
+  (none on hand), a real phone, the "reader not installed" message (the browser had the library cached), Windows.
+
 ## 1.19.0 (2026-11-27)
 - **Add a video** (Movies page): anyone on the Wi-Fi uploads their own movies and home videos (MP4, M4V, WebM, MKV,
   AVI, MOV, OGV; up to 8 GB each; several at once with a progress bar) into a category (Comedy, Drama and family,

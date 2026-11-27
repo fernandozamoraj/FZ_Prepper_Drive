@@ -225,3 +225,14 @@
   `kind`; each kind has its own folder, categories, file types, size limit and content checks.
 - 8 GB a video (documents 1 GB): a long HD film fits; the drive is exFAT, which has no 4 GB file limit.
 
+## 2026-11-27: E-book reader with foliate-js, locked down by a Content-Security-Policy
+- **Chosen:** foliate-js (MIT; the engine of the Foliate app): plain ES modules, no build step, reads EPUB, MOBI/KF8
+  (AZW3), FB2 and CBZ. **Rejected:** epub.js (EPUB only, maintained less), Readium (heavier, needs a build).
+- **Downloaded by setup, not committed:** pinned commit, each file's sha256 in `scripts/kit.py`, like the map
+  libraries. Only the 13 files the formats need.
+- **Security:** e-books are HTML and can carry scripts, and uploads come from anyone on the Wi-Fi. foliate-js's own
+  README says its frames can't be sandboxed (WebKit needs `allow-scripts`) and to use a CSP. The reader page gets
+  `script-src 'self'` (no inline, no blob:), which frames made from blob: URLs inherit; verified with a hostile EPUB.
+  The policy is sent only with the reader page, so no other page changes.
+- **Positions stay per device** (browser storage), like the movie and audiobook players.
+

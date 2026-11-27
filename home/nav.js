@@ -1,4 +1,4 @@
-/* nav.js (offline prepper kit v1.19.0): the header bar on every page of the kit:
+/* nav.js (offline prepper kit v1.20.1): the header bar on every page of the kit:
    ⌂ Home (hub, port 8000) · Library (8080) · Bible (8000/bible) · Maps (8090) · Books · Movies · Software · Supplies · Family (8000/...).
    The library and map ports can move when another program has them: the hub's /ports.json says where they are,
    and window.fzKit (.lib, .maps, .hub, .ready) gives other page scripts the current addresses.
@@ -12,7 +12,7 @@
   window.__fznav = true;
 
   const h = location.hostname, p = location.protocol, port = location.port || (p === 'https:' ? '443' : '80');
-  const NAV_VERSION = '1.19.0';  // = intranet.py VERSION; a running hub that reports another one is older: restart it
+  const NAV_VERSION = '1.20.1';  // = intranet.py VERSION; a running hub that reports another one is older: restart it
   const K = window.fzKit = {ports: {hub: 8000, library: 8080, maps: 8090}};
   const at = n => `${p}//${h}:${K.ports[n]}/`;
   Object.defineProperties(K, {hub: {get: () => at('hub')}, lib: {get: () => at('library')}, maps: {get: () => at('maps')}});

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Books and Audiobooks</title>
-<!-- Offline prepper kit v1.19.0: the optional Books module (bin/catalog.py, `kit books`), served by bin/intranet.py at /books -->
+<!-- Offline prepper kit v1.20.1: the optional Books module (bin/catalog.py, `kit books`), served by bin/intranet.py at /books -->
 <link rel="stylesheet" href="/media.css">
 <style>
 .player{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
@@ -23,6 +23,7 @@
   <p class="sub">Textbooks (math, nursing, science, programming, business, history) and classic novels, with LibriVox audiobooks.</p>
   <p><button class="btn primary" type="button" id="addbtn">📤 Add a document</button>
     <small class="muted">PDFs, e-books and manuals from any phone or computer on the Wi-Fi</small></p>
+  <div id="dropnote"></div>
   <form class="up" id="upform" hidden>
     <div class="grid">
       <div><label class="f" for="upfiles">File(s)</label><input type="file" id="upfiles" multiple required></div>
@@ -47,7 +48,10 @@
   <h2>Reading tips</h2>
   <ul class="tips">
     <li><b>PDF</b> opens right in the browser on any device.</li>
-    <li><b>EPUB</b>: on an iPhone or iPad, tap it and choose <b>Books</b>. On Android, tap it and open it with a reader app
+    <li><b>📖 Read</b> opens EPUB, Kindle (MOBI, AZW3), FB2 and CBZ books right here, on any phone or computer: tap or
+      swipe the edges (or use the arrow keys) to turn pages, ☰ for contents, A− A+ for text size, ◐ for light, sepia or
+      dark. It remembers your page on each device. Copy-protected Kindle books can't be opened.</li>
+    <li><b>EPUB</b> in an app instead: on an iPhone or iPad, tap it and choose <b>Books</b>. On Android, tap it and open it with a reader app
       (Google Play Books, ReadEra). On a Mac, the <b>Books</b> app opens it. On Windows, use <b>Thorium Reader</b>,
       <b>SumatraPDF</b> or <b>Calibre</b> from the <a href="/software">Software</a> page.</li>
     <li><b>Add a document</b> (top of this page) copies a PDF or e-book into the kit, so it goes along when the kit is
@@ -60,17 +64,22 @@
   </ul>
   <footer>Books from OpenStax (CC BY-NC-SA), Project Gutenberg (public domain), Green Tea Press, opendatastructures.org,
     the OSTEP authors, Pro Git and SICP (CC licenses) and Kiwix; audiobooks from LibriVox (public domain).
-    Each book's license is listed with it and in <code>books/ABOUT THESE BOOKS.txt</code>. Offline prepper kit v1.19.0</footer>
+    Each book's license is listed with it and in <code>books/ABOUT THESE BOOKS.txt</code>. Offline prepper kit v1.20.1</footer>
 </div>
 <script>
-const {esc, cmd, store, json, banner, upload, uploadAll, removeUpload} = fzMedia;
+const {esc, cmd, store, json, banner, upload, uploadAll, removeUpload, dropNote} = fzMedia;
 let DATA = null, LIB = `${location.protocol}//${location.hostname}:8080/`;
 if (window.fzKit) fzKit.ready.then(k => { LIB = k.lib; render(); });
+
+// 📖 Read: the kit's own e-book reader (/reader), for the formats it can show
+const READABLE = ['epub', 'mobi', 'azw3', 'fb2', 'cbz'];
+const readLink = (url, title, primary) => `<a class="btn${primary ? ' primary' : ''}" href="/reader?${esc(new URLSearchParams({book: url, title}).toString())}">📖 Read</a>`;
 
 function bookRow(b, kit) {
   const h = b.have, got = Object.keys(h).some(k => k !== 'audio');
   const acts = [];
-  if (h.epub) acts.push(`<a class="btn primary" href="${esc(h.epub.url)}">EPUB <small>${h.epub.mb} MB</small></a>`);
+  if (h.epub) acts.push(readLink(h.epub.url, b.title, true), `<a class="btn" href="${esc(h.epub.url)}">EPUB <small>${h.epub.mb} MB</small></a>`);
+  else { const o = (h.other || []).find(o => READABLE.includes(o.ext)); if (o) acts.push(readLink(o.url, b.title, true)); }
   if (h.pdf && !Array.isArray(h.pdf)) acts.push(`<a class="btn${h.epub ? '' : ' primary'}" href="${esc(h.pdf.url)}" target="_blank">PDF <small>${h.pdf.mb} MB</small></a>`);
   if (h.library) acts.push(`<a class="btn primary" href="${esc(LIB)}viewer#${esc(h.library)}" target="_top">📚 Open in Library</a>`);
   (h.other || []).forEach(o => acts.push(`<a class="btn${acts.length ? '' : ' primary'}" href="${esc(o.url)}?download">${esc(o.ext.toUpperCase())} <small>${o.mb} MB</small></a>`));
@@ -154,6 +163,7 @@ function renderMine() {
   document.getElementById('mine').innerHTML = cats.map(c => `<section data-cat><h2>📤 ${esc(c.name)} <small>${c.items.length} added by your household</small></h2>
     <div class="list">${c.items.map(it => {
       const open = it.ext === 'pdf' || it.ext === 'txt' ? `<a class="btn primary" href="${esc(it.url)}" target="_blank">Open ${esc(it.ext.toUpperCase())}</a>`
+        : READABLE.includes(it.ext) ? readLink(it.url, it.title, true)
         : `<a class="btn primary" href="${esc(it.url)}">${esc(it.ext.toUpperCase())}</a>`;
       return `<div class="item" data-have="1" data-text="${esc((it.title + ' ' + it.by + ' ' + it.key).toLowerCase())}">
         <div class="row"><div class="t">${esc(it.title)} <small>· ${esc(it.ext.toUpperCase())} ${it.mb || '<0.1'} MB</small></div>
@@ -166,6 +176,8 @@ function renderMine() {
 function loadMine() { return json('/uploads.json').then(d => {
   UP = d;
   const sel = document.getElementById('upcat');
+  document.getElementById('dropnote').innerHTML = dropNote({kit: d.kit_name || 'offline-prepper-kit', sub: 'uploads',
+    cats: Object.fromEntries(d.cats.map(c => [c.id, c.name])), ext: d.ext, full: d.folder, page: 'Books'});
   if (!sel.options.length) {
     sel.innerHTML = d.cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
     sel.value = store.get('upcat', 'survival');

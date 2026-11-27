@@ -1,4 +1,4 @@
-/* media.js (offline prepper kit v1.19.0): helpers shared by the Books, Movies and Software pages (incl. uploads). */
+/* media.js (offline prepper kit v1.20.1): helpers shared by the Books, Movies and Software pages (incl. uploads). */
 window.fzMedia = (() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   // A command to type on the computer that runs the kit, with a Copy button
@@ -53,5 +53,14 @@ window.fzMedia = (() => {
   const removeUpload = (kind, key) => fetch('/uploads/delete', {method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-Kit-Upload': '1'}, body: JSON.stringify({kind, key})})
     .then(r => r.json().catch(() => ({})).then(d => { if (!r.ok) throw new Error(d.error || 'Could not remove it.'); return d; }));
-  return {esc, cmd, store, json, banner, upload, uploadAll, removeUpload};
+  // "Did you know?": where to copy many files at once (they show up the next time the page is opened)
+  const dropNote = ({kit, sub, cats, ext, full, page, extra = ''}) => `<div class="drop">💡 <b>Did you know?</b> You can copy
+    lots of files at once straight into the kit: put them in <code>${esc(kit)}/${esc(sub)}/&lt;folder&gt;/</code> on the
+    thumb drive (or on the computer running the kit), and they show up on this page the next time it's opened. No upload,
+    no restart.${extra}
+    <details><summary>Which folder, which files</summary><ul>${Object.entries(cats).map(([id, name]) =>
+      `<li><code>${esc(sub)}/${esc(id)}/</code> ${esc(name)}</li>`).join('')}</ul>
+      <small>Files must be inside one of these folders. Kinds: ${esc(ext.map(e => e.slice(1).toUpperCase()).join(', '))}.
+      On this kit the folder is <code>${esc(full)}</code>. Its “HOW TO ADD FILES.txt” says the same.</small></details></div>`;
+  return {esc, cmd, store, json, banner, upload, uploadAll, removeUpload, dropNote};
 })();

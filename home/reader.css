@@ -1,0 +1,30 @@
+/* reader.css (offline prepper kit v1.20.1): the e-book reader page (home/reader.html). */
+body.reader{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;--rbg:#fbfaf6;--rink:#1d1d1b}
+body.reader.sepia{--rbg:#f4ecd8;--rink:#5b4636}
+body.reader.dark{--rbg:#161714;--rink:#e6e4dc}
+#fznav{flex:none}
+.rbar{flex:none;display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--line)}
+.rtitle{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.rtitle b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+.rtitle small{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rbtn{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:36px;padding:0 9px;
+  border:1px solid var(--line);border-radius:9px;background:var(--chip);color:var(--ink);font:600 15px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  text-decoration:none;cursor:pointer}
+.rbtn:disabled{opacity:.4;cursor:default}
+.rmain{flex:1;min-height:0;display:flex;background:var(--rbg);color:var(--rink)}
+.rview{flex:1;min-width:0;position:relative}
+.rview foliate-view{position:absolute;inset:0;width:100%;height:100%}
+.rside{flex:none;width:44px;border:0;background:transparent;color:var(--rink);opacity:.35;font-size:30px;cursor:pointer}
+.rside:hover{opacity:.8}
+.rmsg{max-width:560px;margin:40px auto;padding:0 16px;color:var(--rink);line-height:1.5}
+#rslider{flex:none;width:100%;margin:0;accent-color:var(--accent)}
+.rtoc{position:fixed;top:0;bottom:0;left:0;width:min(360px,88vw);background:var(--panel);border-right:1px solid var(--line);
+  box-shadow:0 0 30px rgba(0,0,0,.3);z-index:2147483500;display:flex;flex-direction:column}
+.rtochead{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+#toclist{overflow:auto;padding:6px 4px 20px}
+#toclist ol{list-style:none;margin:0;padding-left:14px}
+#toclist > ol{padding-left:4px}
+#toclist a{display:block;padding:6px 8px;border-radius:7px;color:var(--ink);text-decoration:none}
+#toclist a:hover,#toclist a[aria-current]{background:var(--chip)}
+#toclist [role=treeitem] > span[role=button]{display:none}
+@media (max-width:520px){ .rside{width:28px;font-size:24px} .rbtn{min-width:34px;padding:0 7px} }

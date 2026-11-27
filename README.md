@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.19.0)
+# FZ Prepper Drive (offline prepper kit v1.20.1)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
@@ -155,13 +155,22 @@ On the **📕 Books** page, **📤 Add a document** uploads PDFs, e-books (EPUB,
 audiobooks from any phone or computer on the Wi-Fi, into a category, with an optional title and your name. They are
 copied into `uploads/<category>/` in the kit (so they go to the thumb drive with `make-drive`) and listed at the top of
 the Books page. Only the computer that runs the kit can remove one (it goes to `uploads/.trash`). You can also copy
-files into `uploads/survival/`, `uploads/medical/`… by hand. Limit 1 GB a file. Test: `python3 tests/test_uploads.py`.
+files into `uploads/survival/`, `uploads/medical/`… by hand (the hub makes these folders and a
+`HOW TO ADD FILES.txt` when it starts; the page shows them under **Did you know?**). Limit 1 GB a file. Test: `python3 tests/test_uploads.py`.
+
+### Reading e-books in the browser (📖 Read)
+On the **📕 Books** page, **📖 Read** opens EPUB, Kindle (MOBI, AZW3), FB2 and CBZ books right in the browser on any
+phone or computer: tap or swipe the page edges or use the arrow keys, ☰ contents, A− A+ text size, ◐ light / sepia /
+dark; it remembers your page on each device. The reader (foliate-js) is installed by `setup`, or on its own with
+`./kit.sh setup-reader` (Windows: `kit.bat setup-reader`), ~230 KB, checksum-checked. Scripts inside books are blocked.
+Copy-protected Kindle books can't be opened. Test: `python3 tests/test_reader.py`.
 
 ### Your own movies (Add a video, Movies page)
 On the **🎬 Movies** page, **📤 Add a video** uploads movies and home videos (MP4, M4V, WebM, MKV, AVI, MOV, OGV; up to
 8 GB each) from any device on the Wi-Fi into `movies/<category>/`, with an optional title and your name. They show on
 the Movies page with Watch and Download, go to the thumb drive with `make-drive`, and only the computer that runs the
-kit can remove one (to `movies/.trash`). MP4 plays on every phone.
+kit can remove one (to `movies/.trash`). Or copy many videos at once into `movies/my-movies/` (or `comedy/`,
+`drama/`…) on the drive: they show on the next page load. MP4 plays on every phone.
 
 ### Sharing the kit with phones
 The Home page shows **📶 Share this kit** with the address other devices on the same Wi-Fi open (for example
@@ -250,6 +259,8 @@ where the important documents are, and notes. **Print** gives a paper copy; keep
 | `home/books.html`, `home/movies.html`, `home/movies-add.html`, `home/software.html`, `home/media.css`, `home/media.js` | yes | Books, Movies (+ how to add more) and Software pages |
 | `books/`, `audiobooks/`, `movies/`, `software/` | no | optional modules: downloaded |
 | `home/family.html`, `home/family-crypto.js`, `tests/test_family.py` | yes | Family emergency page, its lock, its test |
+| `home/reader.html`, `home/reader.js`, `home/reader.css`, `tests/test_reader.py` | yes | e-book reader page and its test |
+| `home/reader-lib/` | no | foliate-js, the reader's library: `setup-reader` |
 | `tests/test_uploads.py` | yes | test for Add a document and the share address |
 | `home/supplies.html`, `home/supplies-data.js`, `tests/test_supplies.py` | yes | Supplies page, its item list, its test |
 | `uploads/` | no | documents added on the Books page (copied to the drive, never to git; `.trash` stays here) |

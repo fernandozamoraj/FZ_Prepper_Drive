@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Movies</title>
-<!-- Offline prepper kit v1.19.0: the optional Movies module (bin/catalog.py, `kit movies`), served by bin/intranet.py at /movies.
+<!-- Offline prepper kit v1.20.1: the optional Movies module (bin/catalog.py, `kit movies`), served by bin/intranet.py at /movies.
      Videos stream from /files/movies/... with byte ranges (seeking works, and iPhones play them). -->
 <link rel="stylesheet" href="/media.css">
 <style>
@@ -28,6 +28,7 @@
     · <a href="/movies/add">How to add more movies</a></p>
   <p><button class="btn primary" type="button" id="addbtn">📤 Add a video</button>
     <small class="muted">your own movies and home videos, from any phone or computer on the Wi-Fi</small></p>
+  <div id="dropnote"></div>
   <form class="up" id="upform" hidden>
     <div class="grid">
       <div><label class="f" for="upfiles">Video file(s)</label><input type="file" id="upfiles" multiple required></div>
@@ -62,14 +63,14 @@
       <b>VLC</b> or <b>mpv</b> from the <a href="/software">Software</a> page.</li>
   </ul>
   <footer>Films from the Internet Archive's Feature Films collection (public domain) and Blender Studio / Nina Paley
-    (Creative Commons). Each film's license is shown with it. Offline prepper kit v1.19.0</footer>
+    (Creative Commons). Each film's license is shown with it. Offline prepper kit v1.20.1</footer>
 </div>
 <div id="player" hidden>
   <div class="bar"><b id="ptitle"></b><a class="btn" id="pdl" href="#">⬇ Download</a><button class="btn" type="button" id="pclose">✕ Close</button></div>
   <video id="video" controls playsinline preload="metadata"></video>
 </div>
 <script>
-const {esc, cmd, store, json, banner, upload, uploadAll, removeUpload} = fzMedia;
+const {esc, cmd, store, json, banner, upload, uploadAll, removeUpload, dropNote} = fzMedia;
 let DATA;
 function card(m, kit) {
   const meta = [m.year, m.minutes && `${m.minutes} min`, m.mb && `${m.mb >= 1000 ? (m.mb / 1000).toFixed(1) + ' GB' : m.mb + ' MB'}`].filter(Boolean).join(' · ');
@@ -134,6 +135,9 @@ document.getElementById('upcancel').onclick = () => { document.getElementById('u
 function setupUpload() {
   const sel = document.getElementById('upcat'), u = DATA.upload;
   if (sel.options.length || !u) return;
+  document.getElementById('dropnote').innerHTML = dropNote({kit: DATA.kit_name || 'offline-prepper-kit', sub: 'movies',
+    cats: u.cats, ext: u.ext, full: DATA.folder, page: 'Movies',
+    extra: ' For a big collection you\'d rather not copy, add its folder on the <a href="/settings">Settings</a> page instead.'});
   sel.innerHTML = Object.entries(u.cats).map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join('');
   sel.value = store.get('movcat', 'my-movies');
   document.getElementById('upfiles').accept = u.ext.join(',');

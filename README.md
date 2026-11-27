@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.18.0)
+# FZ Prepper Drive (offline prepper kit v1.19.0)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
@@ -156,6 +156,12 @@ audiobooks from any phone or computer on the Wi-Fi, into a category, with an opt
 copied into `uploads/<category>/` in the kit (so they go to the thumb drive with `make-drive`) and listed at the top of
 the Books page. Only the computer that runs the kit can remove one (it goes to `uploads/.trash`). You can also copy
 files into `uploads/survival/`, `uploads/medical/`… by hand. Limit 1 GB a file. Test: `python3 tests/test_uploads.py`.
+
+### Your own movies (Add a video, Movies page)
+On the **🎬 Movies** page, **📤 Add a video** uploads movies and home videos (MP4, M4V, WebM, MKV, AVI, MOV, OGV; up to
+8 GB each) from any device on the Wi-Fi into `movies/<category>/`, with an optional title and your name. They show on
+the Movies page with Watch and Download, go to the thumb drive with `make-drive`, and only the computer that runs the
+kit can remove one (to `movies/.trash`). MP4 plays on every phone.
 
 ### Sharing the kit with phones
 The Home page shows **📶 Share this kit** with the address other devices on the same Wi-Fi open (for example

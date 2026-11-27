@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Movies</title>
-<!-- Offline prepper kit v1.18.0: the optional Movies module (bin/catalog.py, `kit movies`), served by bin/intranet.py at /movies.
+<!-- Offline prepper kit v1.19.0: the optional Movies module (bin/catalog.py, `kit movies`), served by bin/intranet.py at /movies.
      Videos stream from /files/movies/... with byte ranges (seeking works, and iPhones play them). -->
 <link rel="stylesheet" href="/media.css">
 <style>
@@ -26,6 +26,23 @@
   <h1>Movies</h1>
   <p class="sub">Public domain classics and Creative Commons films. <b>Watch</b> streams it to this device; <b>Download</b> saves a copy.
     · <a href="/movies/add">How to add more movies</a></p>
+  <p><button class="btn primary" type="button" id="addbtn">📤 Add a video</button>
+    <small class="muted">your own movies and home videos, from any phone or computer on the Wi-Fi</small></p>
+  <form class="up" id="upform" hidden>
+    <div class="grid">
+      <div><label class="f" for="upfiles">Video file(s)</label><input type="file" id="upfiles" multiple required></div>
+      <div><label class="f" for="upcat">Category</label><select id="upcat"></select></div>
+      <div><label class="f" for="uptitle">Title <small class="muted">(optional, one file)</small></label><input type="text" id="uptitle" maxlength="200"></div>
+      <div><label class="f" for="upby">Your name <small class="muted">(optional)</small></label><input type="text" id="upby" maxlength="60"></div>
+    </div>
+    <p style="margin:12px 0 0"><button class="btn primary" type="submit" id="upgo">Upload</button>
+      <button class="btn" type="button" id="upcancel">Close</button>
+      <small class="muted" id="uplimits"></small></p>
+    <p class="muted" style="margin:6px 0 0"><small>Big videos take a while over Wi-Fi (about a minute per GB on good Wi-Fi):
+      keep this page open and the phone awake until it says ✓. MP4 plays on every phone.</small></p>
+    <div class="upbar" hidden id="upbar"><span></span></div>
+    <div class="upmsg" id="upmsg" role="status"></div>
+  </form>
   <div id="banner"></div>
   <div class="toolbar">
     <input id="q" type="search" placeholder="Filter: title, year or category… e.g. Sherlock, 1940, horror" aria-label="Filter movies">
@@ -37,18 +54,22 @@
     <li><b>Phones and TVs:</b> any device on the same Wi-Fi can watch at once. On a phone, turn it sideways and use the
       player's full-screen button. AirPlay / Chromecast from the player work when the TV is on the same network.</li>
     <li>This device remembers where you stopped each film.</li>
+    <li><b>Add a video</b> copies it into the kit's <code>movies/</code> folder, so it goes along when the kit is copied
+      to a thumb drive. Anyone on the Wi-Fi can add; only the computer that runs the kit can remove (removed videos go to
+      <code>movies/.trash</code>). For a big collection already on a drive, add its folder on the
+      <a href="/settings">Settings</a> page instead (nothing is copied).</li>
     <li>A file that won't play in the browser (some .mkv or .avi you added) can still be downloaded and played with
       <b>VLC</b> or <b>mpv</b> from the <a href="/software">Software</a> page.</li>
   </ul>
   <footer>Films from the Internet Archive's Feature Films collection (public domain) and Blender Studio / Nina Paley
-    (Creative Commons). Each film's license is shown with it. Offline prepper kit v1.18.0</footer>
+    (Creative Commons). Each film's license is shown with it. Offline prepper kit v1.19.0</footer>
 </div>
 <div id="player" hidden>
   <div class="bar"><b id="ptitle"></b><a class="btn" id="pdl" href="#">⬇ Download</a><button class="btn" type="button" id="pclose">✕ Close</button></div>
   <video id="video" controls playsinline preload="metadata"></video>
 </div>
 <script>
-const {esc, cmd, store, json, banner} = fzMedia;
+const {esc, cmd, store, json, banner, upload, uploadAll, removeUpload} = fzMedia;
 let DATA;
 function card(m, kit) {
   const meta = [m.year, m.minutes && `${m.minutes} min`, m.mb && `${m.mb >= 1000 ? (m.mb / 1000).toFixed(1) + ' GB' : m.mb + ' MB'}`].filter(Boolean).join(' · ');
@@ -57,7 +78,8 @@ function card(m, kit) {
     <div class="t">${esc(m.title)}</div><div class="muted"><small>${esc(meta)}</small></div>
     <div class="muted"><small>${esc(m.license || '')}</small></div>
     ${m.url ? `<div class="actions"><button class="btn primary" type="button" data-play="${esc(m.url)}" data-title="${esc(m.title)}">▶ Watch</button>
-      <a class="btn" href="${esc(m.url)}?download">⬇ Download</a></div>`
+      <a class="btn" href="${esc(m.url)}?download">⬇ Download</a>
+      ${DATA.local && m.key ? `<button class="btn" type="button" data-del="${esc(m.key)}" data-title="${esc(m.title)}">Remove</button>` : ''}</div>`
             : `<div class="get">not downloaded:<br>${cmd(`${kit} movies get ${m.id}`)}</div>`}
   </div>`;
 }
@@ -105,7 +127,38 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-play
 document.getElementById('pclose').addEventListener('click', close);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !P.hidden) close(); });
 
-json('/movies.json').then(d => { DATA = d; render(); })
+// ---- Add a video (uploads into movies/<category>/) ----
+document.getElementById('upby').value = store.get('upby', '');
+document.getElementById('addbtn').onclick = () => { const f = document.getElementById('upform'); f.hidden = !f.hidden; };
+document.getElementById('upcancel').onclick = () => { document.getElementById('upform').hidden = true; };
+function setupUpload() {
+  const sel = document.getElementById('upcat'), u = DATA.upload;
+  if (sel.options.length || !u) return;
+  sel.innerHTML = Object.entries(u.cats).map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join('');
+  sel.value = store.get('movcat', 'my-movies');
+  document.getElementById('upfiles').accept = u.ext.join(',');
+  document.getElementById('uplimits').textContent = `${u.ext.map(e => e.slice(1).toUpperCase()).join(', ')} · up to ${Math.round(u.max_mb / 1024)} GB each`;
+}
+document.getElementById('upform').addEventListener('submit', async e => {
+  e.preventDefault();
+  const files = [...document.getElementById('upfiles').files], cat = document.getElementById('upcat').value,
+    by = document.getElementById('upby').value.trim(), title = files.length === 1 ? document.getElementById('uptitle').value.trim() : '';
+  if (!files.length) return;
+  store.set('upby', by); store.set('movcat', cat);
+  const go = document.getElementById('upgo');
+  go.disabled = true;
+  await uploadAll(files, (f, prog) => upload(f, {kind: 'movies', cat, title, by}, prog),
+    document.getElementById('upbar'), document.getElementById('upmsg'), d => { DATA = d; render(); });
+  go.disabled = false;
+  document.getElementById('upfiles').value = ''; document.getElementById('uptitle').value = '';
+});
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-del]');
+  if (!b || !confirm(`Remove “${b.dataset.title}” from the kit?\n\nIt is moved to movies/.trash on this computer, not erased.`)) return;
+  try { DATA = await removeUpload('movies', b.dataset.del); render(); } catch (err) { alert(err.message); }
+});
+
+json('/movies.json').then(d => { DATA = d; setupUpload(); render(); })
   .catch(() => document.getElementById('out').innerHTML = '<p class="muted">Could not load the movie list.</p>');
 </script>
 </body>

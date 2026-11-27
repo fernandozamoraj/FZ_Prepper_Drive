@@ -1,5 +1,20 @@
 # Changelog: offline prepper kit
 
+## 1.19.0 (2026-11-27)
+- **Add a video** (Movies page): anyone on the Wi-Fi uploads their own movies and home videos (MP4, M4V, WebM, MKV,
+  AVI, MOV, OGV; up to 8 GB each; several at once with a progress bar) into a category (Comedy, Drama and family,
+  Mystery, Adventure, Horror and sci-fi, My movies), with an optional title and "your name". Saved in
+  `movies/<category>/`, where the Movies page already lists videos added by hand; shown with "added by Ana · date",
+  Watch (streams with seeking) and Download. Only the computer running the kit can **Remove** (to `movies/.trash`).
+- The file must really be a video of that type (MP4/MOV box, Matroska/WebM, AVI and Ogg signatures).
+- One upload path for both pages (`/uploads?kind=docs|movies`); the form, progress bar and sending code are shared in
+  `media.css` / `media.js` (the Books page uses them too; its progress bar is now `.upbar`).
+- `make-drive` never replaces a newer copy in `movies/` on the drive either (both `kit.py` and `make-drive.sh`).
+- Tested: `tests/test_uploads.py` (39 checks, 13 new for videos: MP4/MKV in; fake MP4, PDF on Movies, video on Books,
+  Creative Commons category and unknown kind refused; listing, streaming, phone can't remove, removal to .trash) plus
+  the Family and Supplies tests; in the browser pane: Movies upload (MP4 in, PDF refused, listed with Remove) and the
+  Books upload again after the refactor. Not tried: a multi-GB video, a real phone's file picker, Windows.
+
 ## 1.18.0 (2026-11-27)
 - **Add a document** (Books page): anyone on the Wi-Fi can upload PDFs, e-books (EPUB, MOBI, AZW3, FB2, DjVu, CBZ/CBR,
   TXT, RTF, DOCX) and single-file audiobooks (M4B, MP3), several at once with a progress bar, into a category

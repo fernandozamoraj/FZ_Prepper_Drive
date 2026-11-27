@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tests/test_uploads.py (offline prepper kit v1.18.0): documents added on the Books page (bin/intranet.py /uploads).
+"""tests/test_uploads.py (offline prepper kit v1.19.0): documents added on the Books page (bin/intranet.py /uploads).
 
     python3 tests/test_uploads.py        (uses a temporary folder, not uploads/)
 
@@ -7,6 +7,7 @@ Adds a PDF and an EPUB, lists them with title / who / category, serves them back
 keeps both copies when two people upload the same name, refuses: no X-Kit-Upload header, other web sites, unknown
 category, web pages and programs (.html, .exe), a renamed file that isn't really a PDF, empty and too-big files,
 path tricks in the name; phones can add but not remove; removing moves the file to .trash; hidden files never served.
+Videos on the Movies page (kind=movies): MP4/MKV in, fakes and wrong kinds out, listing, streaming, removal.
 Also /share.json, the Wi-Fi address the Home page shows for sharing the kit.
 """
 import http.client
@@ -22,6 +23,8 @@ KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAILS = []
 PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n" + b"x" * 5000
 EPUB = b"PK\x03\x04" + b"\x00" * 3000
+MP4 = b"\x00\x00\x00\x20ftypisom\x00\x00\x02\x00" + b"\x00" * 4000
+MKV = b"\x1a\x45\xdf\xa3" + b"\x00" * 4000
 
 
 def check(cond, what):
@@ -40,6 +43,9 @@ def main():
     intranet.KIT = kit
     intranet.UPLOADS = tmp
     intranet.UPLOAD_INDEX = os.path.join(tmp, ".index.json")
+    movies = os.path.join(kit, "movies")
+    os.makedirs(movies)
+    intranet.catalog.MOVIES_DIR = movies
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), intranet.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
@@ -58,8 +64,8 @@ def main():
         except ValueError:
             return r.status, data, dict(r.getheaders())
 
-    def up(name, data, cat="survival", title="", by="", hdr=True, origin=None):
-        q = urllib.parse.urlencode({"cat": cat, "name": name, "title": title, "by": by})
+    def up(name, data, cat="survival", title="", by="", hdr=True, origin=None, kind="docs"):
+        q = urllib.parse.urlencode({"kind": kind, "cat": cat, "name": name, "title": title, "by": by})
         h = {"Content-Type": "application/octet-stream", "Content-Length": str(len(data))}
         if hdr:
             h["X-Kit-Upload"] = "1"
@@ -127,6 +133,34 @@ def main():
         st, d, _ = req("GET", "/uploads.json")
         radio = next(c for c in d["cats"] if c["id"] == "radio")["items"]
         check([i["title"] for i in radio] == ["By hand"], "a file copied into uploads/<category>/ by hand shows up")
+
+        # ---- videos (Movies page) ----
+        st, d, _ = up("Grandma 80th birthday.mp4", MP4, kind="movies", cat="my-movies", title="Grandma's 80th", by="Ana")
+        check(st == 200 and d["key"] == "my-movies/Grandma 80th birthday.mp4", f"MP4 added to movies/my-movies: {st} {d.get('key') or d}")
+        mine = [m for c in d["categories"] if c["id"] == "my-movies" for m in c["movies"]]
+        check([(m["title"], m["license"].split(" · ")[0], m["key"]) for m in mine] ==
+              [("Grandma's 80th", "added by Ana", "my-movies/Grandma 80th birthday.mp4")], "listed on Movies with title, name, key")
+        check(d["local"] is True and "my-movies" in d["upload"]["cats"] and "open-movies" not in d["upload"]["cats"],
+              "Movies page gets upload categories (not the Creative Commons one)")
+        st, d, _ = up("Camping.mkv", MKV, kind="movies", cat="adventure")
+        check(st == 200 and os.path.isfile(os.path.join(movies, "adventure", "Camping.mkv")), "MKV added to Adventure")
+        check(up("fake.mp4", b"<html>" + b"x" * 100, kind="movies", cat="my-movies")[0] == 415, "renamed file that isn't an MP4: refused")
+        check(up("book.pdf", PDF, kind="movies", cat="my-movies")[0] == 415, "a PDF on the Movies page: refused")
+        check(up("film.mp4", MP4, kind="docs")[0] == 415, "a video on the Books page: refused")
+        check(up("a.mp4", MP4, kind="movies", cat="open-movies")[0] == 400, "Creative Commons category can't be uploaded to")
+        check(up("a.mp4", MP4, kind="games", cat="my-movies")[0] == 400, "unknown kind refused")
+        st, body, h = req("GET", "/files/movies/" + urllib.parse.quote("my-movies/Grandma 80th birthday.mp4"), headers={"Range": "bytes=4-7"})
+        check(st == 206 and body == b"ftyp" and h.get("Content-Type") == "video/mp4", "video streams back with byte ranges")
+        check(req("GET", "/files/movies/.uploads.json")[0] == 404, "the movies index is never served")
+        remote["on"] = True
+        check(req("POST", "/uploads/delete", json.dumps({"kind": "movies", "key": "my-movies/Grandma 80th birthday.mp4"}).encode(),
+                  {"Content-Type": "application/json", "X-Kit-Upload": "1"})[0] == 403, "a phone can't remove a video")
+        remote["on"] = False
+        st, d, _ = req("POST", "/uploads/delete", json.dumps({"kind": "movies", "key": "my-movies/Grandma 80th birthday.mp4"}).encode(),
+                       {"Content-Type": "application/json", "X-Kit-Upload": "1"})
+        check(st == 200 and not [m for c in d["categories"] for m in c["movies"] if m.get("key") == "my-movies/Grandma 80th birthday.mp4"]
+              and any(f.endswith("Grandma 80th birthday.mp4") for f in os.listdir(os.path.join(movies, ".trash"))),
+              "this computer removes a video into movies/.trash")
     finally:
         srv.shutdown()
         shutil.rmtree(kit, ignore_errors=True)

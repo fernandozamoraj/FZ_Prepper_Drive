@@ -1,4 +1,4 @@
-/* media.css (offline prepper kit v1.18.0): shared look of the Books, Movies and Software pages (same tokens as hub.html). */
+/* media.css (offline prepper kit v1.19.0): shared look of the Books, Movies and Software pages (same tokens as hub.html). */
 :root{
   --bg:#f6f5f1; --panel:#fff; --ink:#1d1d1b; --muted:#6b6a64; --line:#e3e1da;
   --accent:#2f6b3a; --accent-ink:#fff; --chip:#ecebe5; --warn-bg:#fff6e0; --warn-line:#e8cf8a;
@@ -56,5 +56,16 @@ small{font-size:13px}
 .tips b{color:var(--ink)}
 .tips li{margin:4px 0}
 footer{margin-top:40px;color:var(--muted);font-size:13px}
+/* Upload form (Books and Movies pages: "Add a document" / "Add a video") */
+.up{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin:0 0 14px;box-shadow:var(--shadow)}
+.up .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 14px}
+.up label.f{display:block;font-weight:600;font-size:14px;margin-bottom:4px}
+.up input[type=text],.up select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+.up input[type=file]{max-width:100%;font:inherit}
+.upbar{height:10px;border-radius:99px;background:var(--chip);overflow:hidden;margin-top:6px}
+.upbar span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.upmsg{margin-top:8px;font-size:14px}
+.upmsg .bad{color:#b4462b;font-weight:600}
+@media (prefers-color-scheme:dark){ .upmsg .bad{color:#f08a6c} }
 [hidden]{display:none!important}
 @media (max-width:520px){ h1{font-size:24px} }

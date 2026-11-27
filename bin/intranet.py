@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.18.0).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.19.0).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -39,7 +39,7 @@ import kitplatform  # noqa: E402
 import catalog  # noqa: E402  (books, audiobooks, movies, software)
 import mimetypes  # noqa: E402
 
-VERSION = "1.18.0"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
+VERSION = "1.19.0"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
 KIT = kitplatform.KIT
 GUIDES = os.path.join(KIT, "guides")
 PORTS = {"library": 8080, "maps": 8090}
@@ -322,22 +322,49 @@ UPLOAD_LOCK = threading.Lock()
 UPLOAD_MAGIC = {".pdf": [b"%PDF-"], ".epub": [b"PK\x03\x04"], ".docx": [b"PK\x03\x04"], ".cbz": [b"PK\x03\x04"],
                 ".djvu": [b"AT&TFORM"], ".cbr": [b"Rar!"], ".rtf": [b"{\\rtf"], ".mobi": None, ".azw3": None,
                 ".fb2": None, ".txt": None, ".m4b": None, ".mp3": None}
+MOVIE_UPLOAD_MAX = 8 << 30     # 8 GB a video (a long HD film); the kit's drive is exFAT, which has no 4 GB limit
+MP4_BOXES = (b"ftyp", b"moov", b"mdat", b"wide", b"free", b"skip", b"pnot")
 
 
-def upload_index():
+def looks_like(ext, first):
+    """Does the start of the file match its extension? (Unknown or text-like types aren't checked.)"""
+    if ext in (".mp4", ".m4v", ".mov"):
+        return first[4:8] in MP4_BOXES
+    if ext in (".webm", ".mkv"):
+        return first.startswith(b"\x1a\x45\xdf\xa3")
+    if ext == ".avi":
+        return first[:4] == b"RIFF" and first[8:12] == b"AVI "
+    if ext == ".ogv":
+        return first.startswith(b"OggS")
+    magic = UPLOAD_MAGIC.get(ext)
+    return not magic or any(first.startswith(m) for m in magic)
+
+
+def upload_kind(kind):
+    """Where each kind of upload goes. Worked out on each call (tests point the folders elsewhere)."""
+    if kind == "movies":  # into movies/<category>/, where the Movies page already lists videos added by hand
+        return {"root": catalog.MOVIES_DIR, "index": os.path.join(catalog.MOVIES_DIR, ".uploads.json"),
+                "cats": {k: v for k, v in catalog.MOVIE_CATEGORIES.items() if k != "open-movies"},
+                "ext": catalog.VIDEO_EXT, "max": MOVIE_UPLOAD_MAX, "what": "Videos", "noun": "video"}
+    return {"root": UPLOADS, "index": UPLOAD_INDEX, "cats": UPLOAD_CATS, "ext": UPLOAD_EXT, "max": UPLOAD_MAX,
+            "what": "Books and documents", "noun": "document"}
+
+
+def upload_index(path=None):
     try:
-        with open(UPLOAD_INDEX, encoding="utf-8") as f:
+        with open(path or UPLOAD_INDEX, encoding="utf-8") as f:
             d = json.load(f)
         return d if isinstance(d, dict) else {}
     except (OSError, ValueError):
         return {}
 
 
-def upload_index_save(d):
-    os.makedirs(UPLOADS, exist_ok=True)
-    with open(UPLOAD_INDEX + ".tmp", "w", encoding="utf-8") as f:
+def upload_index_save(d, path=None):
+    path = path or UPLOAD_INDEX
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
         json.dump(d, f, indent=1, ensure_ascii=False)
-    os.replace(UPLOAD_INDEX + ".tmp", UPLOAD_INDEX)
+    os.replace(path + ".tmp", path)
 
 
 def clean_name(name):
@@ -422,8 +449,10 @@ def books_json():
     return {"cmd": KIT_CMD, "categories": cats}
 
 
-def movies_json():
+def movies_json(local=False):
     movies, known = catalog.all_movies(), set()
+    up = upload_kind("movies")
+    idx = upload_index(up["index"])
     out = {c: [] for c in catalog.MOVIE_CATEGORIES}
     for m in movies:
         p = catalog.movie_file(m)
@@ -439,11 +468,17 @@ def movies_json():
             if f.startswith(".") or not f.lower().endswith(catalog.VIDEO_EXT) or \
                     os.path.normcase(os.path.abspath(p)) in known:
                 continue
-            cat = os.path.relpath(root, catalog.MOVIES_DIR).split(os.sep)[0]
+            rel = os.path.relpath(p, catalog.MOVIES_DIR).replace(os.sep, "/")
+            cat = rel.split("/")[0] if "/" in rel else ""
             cat = cat if cat in catalog.MOVIE_CATEGORIES else "my-movies"
-            out.setdefault(cat, []).append({"id": None, "title": os.path.splitext(f)[0].replace("_", " "), "year": None,
-                                            "minutes": None, "license": "added by you", "url": file_url(p),
-                                            "mb": round(os.path.getsize(p) / 1e6)})
+            info = idx.get(rel, {})
+            who = f"added by {info['by']}" if info.get("by") else "added by you"
+            removable = rel.count("/") == 1 and rel.split("/")[0] in up["cats"]  # uploaded or copied into movies/<cat>/
+            out.setdefault(cat, []).append({"id": None, "title": info.get("title") or os.path.splitext(f)[0].replace("_", " "),
+                                            "year": None, "minutes": None,
+                                            "license": who + (f" · {info['added']}" if info.get("added") else ""),
+                                            "url": file_url(p), "mb": round(os.path.getsize(p) / 1e6),
+                                            "key": rel if removable else None})
     cats = [{"id": c, "name": catalog.MOVIE_CATEGORIES.get(c, c), "movies": out[c]} for c in out if out[c]]
     for n, f in enumerate(FOLDERS["movies"]):  # your own folders (Settings page)
         cats.append({"id": f"folder-{n}", "name": os.path.basename(f["path"].rstrip("\\/")) or f["path"], "folder": f["path"],
@@ -451,7 +486,8 @@ def movies_json():
                      "movies": [{"id": None, "title": m["title"], "year": None, "minutes": None,
                                  "license": m["where"] or "", "url": extra_url("movies", n, m["rel"]),
                                  "mb": round(m["mb"])} for m in f["items"]]})
-    return {"cmd": KIT_CMD, "folder": catalog.MOVIES_DIR, "categories": cats}
+    return {"cmd": KIT_CMD, "folder": catalog.MOVIES_DIR, "categories": cats, "local": local,
+            "upload": {"cats": up["cats"], "ext": up["ext"], "max_mb": up["max"] >> 20}}
 
 
 def software_json():
@@ -526,6 +562,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if path.rstrip("/") in pages:
             self.path = "/home/" + pages[path.rstrip("/")]
             return super().do_GET()
+        if path == "/movies.json":
+            return self.send_json(movies_json(self.is_local()))
         if path in ("/books.json", "/movies.json", "/software.json"):
             return self.send_json({"/books.json": books_json, "/movies.json": movies_json,
                                    "/software.json": software_json}[path]())
@@ -703,53 +741,62 @@ running may be an older version that doesn't have this page yet.</p>
         return self.send_json(settings_json(True))
 
     def post_upload(self, path):
-        """/uploads?cat=&name=&title=&by= with the file as the request body (any device on the Wi-Fi).
-        /uploads/delete {"key": "cat/file"}: this computer only; the file goes to uploads/.trash, not deleted."""
+        """/uploads?kind=&cat=&name=&title=&by= with the file as the request body (any device on the Wi-Fi).
+        kind "docs" (default, Books page: uploads/<cat>/) or "movies" (Movies page: movies/<cat>/).
+        /uploads/delete {"kind", "key": "cat/file"}: this computer only; the file goes to <folder>/.trash, not deleted."""
         def refuse(code, msg):
             self.close_connection = True  # don't read a big body we are refusing
             return self.send_error_json(code, msg)
         if self.headers.get("X-Kit-Upload") != "1":  # a header other web sites can't send without asking first
-            return refuse(403, "Uploads must come from the kit's own Books page.")
-        if path == "/uploads/delete":
-            if not self.is_local():
-                return refuse(403, "Documents can only be removed on the computer that runs the kit.")
-            try:
-                key = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 4096)) or b"{}")["key"]
-                cat, name = key.split("/")
-                assert cat in UPLOAD_CATS and name == clean_name(name) and name.lower().endswith(UPLOAD_EXT)
-            except (ValueError, KeyError, TypeError, AssertionError, AttributeError):
-                return refuse(400, "Bad request.")
-            src = os.path.join(UPLOADS, cat, name)
-            with UPLOAD_LOCK:
-                if not os.path.isfile(src):
-                    return refuse(404, "That document is not there any more.")
-                os.makedirs(os.path.join(UPLOADS, ".trash"), exist_ok=True)
-                os.replace(src, os.path.join(UPLOADS, ".trash", time.strftime("%Y%m%d-%H%M%S-") + name))
-                idx = upload_index()
-                idx.pop(key, None)
-                upload_index_save(idx)
-            return self.send_json(uploads_json(True))
+            return refuse(403, "Uploads must come from the kit's own Books or Movies page.")
         q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
         arg = lambda k: q.get(k, [""])[0]  # noqa: E731
+        if path == "/uploads/delete":
+            try:
+                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 4096)) or b"{}")
+                K = upload_kind(body.get("kind"))
+                key = body["key"]
+                cat, name = key.split("/")
+                assert cat in K["cats"] and name == clean_name(name) and name.lower().endswith(K["ext"])
+            except (ValueError, KeyError, TypeError, AssertionError, AttributeError):
+                return refuse(400, "Bad request.")
+            if not self.is_local():
+                return refuse(403, f"A {K['noun']} can only be removed on the computer that runs the kit.")
+            src = os.path.join(K["root"], cat, name)
+            with UPLOAD_LOCK:
+                if not os.path.isfile(src):
+                    return refuse(404, f"That {K['noun']} is not there any more.")
+                os.makedirs(os.path.join(K["root"], ".trash"), exist_ok=True)
+                os.replace(src, os.path.join(K["root"], ".trash", time.strftime("%Y%m%d-%H%M%S-") + name))
+                idx = upload_index(K["index"])
+                idx.pop(key, None)
+                upload_index_save(idx, K["index"])
+            return self.send_json(movies_json(True) if body.get("kind") == "movies" else uploads_json(True))
+        kind = arg("kind") or "docs"
+        if kind not in ("docs", "movies"):
+            return refuse(400, "Bad request.")
+        K = upload_kind(kind)
         cat, name = arg("cat"), clean_name(arg("name"))
         ext = os.path.splitext(name)[1]
-        if cat not in UPLOAD_CATS:
+        if cat not in K["cats"]:
             return refuse(400, "Pick a category.")
-        if ext not in UPLOAD_EXT:
-            return refuse(415, f"{ext or 'That kind of file'} can't be added. Books and documents only: "
-                               + ", ".join(e[1:].upper() for e in UPLOAD_EXT) + ".")
+        if ext not in K["ext"]:
+            return refuse(415, f"{ext or 'That kind of file'} can't be added here. {K['what']} only: "
+                               + ", ".join(e[1:].upper() for e in K["ext"]) + ".")
         try:
             size = int(self.headers.get("Content-Length") or -1)
         except ValueError:
             size = -1
         if size <= 0:
             return refuse(411, "Empty file, or the browser didn't say how big it is.")
-        if size > UPLOAD_MAX:
-            return refuse(413, f"Too big: the limit is {UPLOAD_MAX >> 20} MB a file.")
-        os.makedirs(os.path.join(UPLOADS, cat), exist_ok=True)
-        if shutil.disk_usage(UPLOADS).free - size < UPLOAD_KEEP_FREE:
+        if size > K["max"]:
+            limit = K["max"] >> 20
+            return refuse(413, f"Too big: the limit is {limit // 1024} GB a file." if limit >= 1024 else
+                               f"Too big: the limit is {limit} MB a file.")
+        os.makedirs(os.path.join(K["root"], cat), exist_ok=True)
+        if shutil.disk_usage(K["root"]).free - size < UPLOAD_KEEP_FREE:
             return refuse(507, "Not enough free space on the kit's disk for this file.")
-        tmp = os.path.join(UPLOADS, f".incoming-{threading.get_ident()}-{time.time_ns()}")
+        tmp = os.path.join(K["root"], f".incoming-{threading.get_ident()}-{time.time_ns()}")
         try:
             left, first = size, b""
             with open(tmp, "wb") as f:
@@ -761,26 +808,26 @@ running may be an older version that doesn't have this page yet.</p>
                         first = chunk[:16]
                     f.write(chunk)
                     left -= len(chunk)
-            magic = UPLOAD_MAGIC.get(ext)
-            if magic and not any(first.startswith(m) for m in magic):
+            if not looks_like(ext, first):
                 os.remove(tmp)
                 return refuse(415, f"That file doesn't look like a real {ext[1:].upper()}.")
             with UPLOAD_LOCK:
-                final, n = os.path.join(UPLOADS, cat, name), 2
+                final, n = os.path.join(K["root"], cat, name), 2
                 while os.path.exists(final):  # never replace someone else's file: "name (2).pdf"
-                    final = os.path.join(UPLOADS, cat, f"{os.path.splitext(name)[0]} ({n}){ext}")
+                    final = os.path.join(K["root"], cat, f"{os.path.splitext(name)[0]} ({n}){ext}")
                     n += 1
                 os.replace(tmp, final)
                 key = f"{cat}/{os.path.basename(final)}"
-                idx = upload_index()
+                idx = upload_index(K["index"])
                 idx[key] = {"title": clean_text(arg("title"), 200) or os.path.splitext(name)[0].replace("_", " "),
                             "by": clean_text(arg("by"), 60), "added": time.strftime("%Y-%m-%d")}
-                upload_index_save(idx)
+                upload_index_save(idx, K["index"])
         except (OSError, ConnectionError) as e:
             if os.path.exists(tmp):
                 os.remove(tmp)
             return refuse(500, f"Could not save the file: {getattr(e, 'strerror', None) or e}")
-        return self.send_json({"ok": True, "key": key, **uploads_json(self.is_local())})
+        return self.send_json({"ok": True, "key": key, **(movies_json(self.is_local()) if kind == "movies"
+                                                           else uploads_json(self.is_local()))})
 
     def post_family(self, path):
         """/family.json: save the locked file. The first one can only be made on the computer running the kit; after

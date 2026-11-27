@@ -34,9 +34,9 @@ echo "Kit needs about ${need_gb} GB; drive has ${free_gb} GB free (+${have_gb} G
 [ $(( free_gb + have_gb )) -ge "$need_gb" ] || { echo "Not enough space on the drive."; exit 1; }
 
 echo "== 1/3 Programs, maps, directions, Bible, guides"
-/usr/bin/rsync -rlt --progress "${EXCLUDES[@]}" --exclude 'kiwix/*.zim' --exclude '/family/' --exclude '/uploads/' "$KIT/" "$DRIVE/offline-prepper-kit/"
-# Family page, Supplies checkmarks and uploaded documents: --update never replaces a newer copy saved on the drive itself
-for d in family uploads; do
+/usr/bin/rsync -rlt --progress "${EXCLUDES[@]}" --exclude 'kiwix/*.zim' --exclude '/family/' --exclude '/uploads/' --exclude '/movies/' "$KIT/" "$DRIVE/offline-prepper-kit/"
+# Family page, Supplies checkmarks, uploaded documents and movies: --update never replaces a newer copy saved on the drive itself
+for d in family uploads movies; do
   [ -d "$KIT/$d" ] && /usr/bin/rsync -rlt --update --exclude '*.tmp' --exclude '.incoming-*' --exclude '.trash/' "$KIT/$d/" "$DRIVE/offline-prepper-kit/$d/"
 done
 

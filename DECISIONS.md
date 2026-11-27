@@ -219,3 +219,9 @@
 - The page can't learn the computer's Wi-Fi address by itself when opened as `localhost`, so `/share.json` reports
   the same address the start-up window prints (`lan_ip()`).
 
+## 2026-11-27: Uploaded videos go into movies/, not uploads/
+- The Movies page already lists any video found under `movies/` ("added by you"), and `make-drive` already copies it,
+  so uploads land in `movies/<category>/` with titles and names in `movies/.uploads.json`. One upload endpoint with a
+  `kind`; each kind has its own folder, categories, file types, size limit and content checks.
+- 8 GB a video (documents 1 GB): a long HD film fits; the drive is exFAT, which has no 4 GB file limit.
+

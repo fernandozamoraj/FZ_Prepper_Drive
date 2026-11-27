@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Books and Audiobooks</title>
-<!-- Offline prepper kit v1.18.0: the optional Books module (bin/catalog.py, `kit books`), served by bin/intranet.py at /books -->
+<!-- Offline prepper kit v1.19.0: the optional Books module (bin/catalog.py, `kit books`), served by bin/intranet.py at /books -->
 <link rel="stylesheet" href="/media.css">
 <style>
 .player{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
@@ -13,16 +13,6 @@
 .player li{cursor:pointer;padding:2px 0}
 .player li.on{font-weight:700;color:var(--accent)}
 .chapters{margin:8px 0 0;padding-left:22px;columns:2 240px;font-size:14px}
-.up{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin:0 0 14px;box-shadow:var(--shadow)}
-.up .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 14px}
-.up label.f{display:block;font-weight:600;font-size:14px;margin-bottom:4px}
-.up input[type=text],.up select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
-.up input[type=file]{max-width:100%;font:inherit}
-.bar{height:10px;border-radius:99px;background:var(--chip);overflow:hidden;margin-top:6px}
-.bar span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
-.upmsg{margin-top:8px;font-size:14px}
-.upmsg .bad{color:#b4462b;font-weight:600}
-@media (prefers-color-scheme:dark){ .upmsg .bad{color:#f08a6c} }
 </style>
 </head>
 <body>
@@ -43,7 +33,7 @@
     <p style="margin:12px 0 0"><button class="btn primary" type="submit" id="upgo">Upload</button>
       <button class="btn" type="button" id="upcancel">Close</button>
       <small class="muted" id="uplimits"></small></p>
-    <div class="bar" hidden id="upbar"><span></span></div>
+    <div class="upbar" hidden id="upbar"><span></span></div>
     <div class="upmsg" id="upmsg" role="status"></div>
   </form>
   <div id="mine"></div>
@@ -70,10 +60,10 @@
   </ul>
   <footer>Books from OpenStax (CC BY-NC-SA), Project Gutenberg (public domain), Green Tea Press, opendatastructures.org,
     the OSTEP authors, Pro Git and SICP (CC licenses) and Kiwix; audiobooks from LibriVox (public domain).
-    Each book's license is listed with it and in <code>books/ABOUT THESE BOOKS.txt</code>. Offline prepper kit v1.18.0</footer>
+    Each book's license is listed with it and in <code>books/ABOUT THESE BOOKS.txt</code>. Offline prepper kit v1.19.0</footer>
 </div>
 <script>
-const {esc, cmd, store, json, banner} = fzMedia;
+const {esc, cmd, store, json, banner, upload, uploadAll, removeUpload} = fzMedia;
 let DATA = null, LIB = `${location.protocol}//${location.hostname}:8080/`;
 if (window.fzKit) fzKit.ready.then(k => { LIB = k.lib; render(); });
 
@@ -188,48 +178,23 @@ document.getElementById('upby').value = store.get('upby', '');
 document.getElementById('addbtn').onclick = () => { const f = document.getElementById('upform'); f.hidden = !f.hidden; };
 document.getElementById('upcancel').onclick = () => { document.getElementById('upform').hidden = true; };
 
-function sendOne(file, cat, title, by, onProgress) {
-  return new Promise((resolve, reject) => {
-    const x = new XMLHttpRequest(), q = new URLSearchParams({cat, name: file.name, title, by});
-    x.open('POST', '/uploads?' + q);
-    x.setRequestHeader('X-Kit-Upload', '1');
-    x.setRequestHeader('Content-Type', 'application/octet-stream');
-    x.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
-    x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (_) {}
-      x.status === 200 ? resolve(d) : reject(new Error(d.error || `The kit answered ${x.status}.`)); };
-    x.onerror = () => reject(new Error('The upload stopped (Wi-Fi dropped, or the kit was closed).'));
-    x.send(file);
-  });
-}
 document.getElementById('upform').addEventListener('submit', async e => {
   e.preventDefault();
   const files = [...document.getElementById('upfiles').files], cat = document.getElementById('upcat').value,
     by = document.getElementById('upby').value.trim(), title = files.length === 1 ? document.getElementById('uptitle').value.trim() : '';
   if (!files.length) return;
   store.set('upby', by); store.set('upcat', cat);
-  const go = document.getElementById('upgo'), bar = document.getElementById('upbar'), msg = document.getElementById('upmsg');
-  const total = files.reduce((a, f) => a + f.size, 0) || 1, lines = [];
-  go.disabled = true; bar.hidden = false;
-  let done = 0;
-  for (const f of files) {
-    msg.innerHTML = lines.join('<br>') + (lines.length ? '<br>' : '') + `Uploading ${esc(f.name)}…`;
-    try {
-      const d = await sendOne(f, cat, title, by, p => bar.firstElementChild.style.width = (100 * (done + p * f.size) / total) + '%');
-      lines.push(`✓ ${esc(f.name)}`); UP = d; renderMine();
-    } catch (err) { lines.push(`<span class="bad">✗ ${esc(f.name)}: ${esc(err.message)}</span>`); }
-    done += f.size; bar.firstElementChild.style.width = (100 * done / total) + '%';
-  }
-  msg.innerHTML = lines.join('<br>');
-  go.disabled = false; setTimeout(() => { bar.hidden = true; bar.firstElementChild.style.width = 0; }, 800);
+  const go = document.getElementById('upgo');
+  go.disabled = true;
+  await uploadAll(files, (f, prog) => upload(f, {kind: 'docs', cat, title, by}, prog),
+    document.getElementById('upbar'), document.getElementById('upmsg'), d => { UP = d; renderMine(); });
+  go.disabled = false;
   document.getElementById('upfiles').value = ''; document.getElementById('uptitle').value = '';
 });
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-del]');
   if (!b || !confirm(`Remove “${b.dataset.title}” from the kit?\n\nIt is moved to uploads/.trash on this computer, not erased.`)) return;
-  const r = await fetch('/uploads/delete', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Kit-Upload': '1'},
-    body: JSON.stringify({key: b.dataset.del})});
-  const d = await r.json().catch(() => ({}));
-  if (r.ok) { UP = d; renderMine(); } else alert(d.error || 'Could not remove it.');
+  try { UP = await removeUpload('docs', b.dataset.del); renderMine(); } catch (err) { alert(err.message); }
 });
 loadMine().catch(() => {});
 

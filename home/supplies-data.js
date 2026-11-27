@@ -1,4 +1,4 @@
-/* supplies-data.js (offline prepper kit v1.18.0): the items on the Supplies page (home/supplies.html).
+/* supplies-data.js (offline prepper kit v1.19.0): the items on the Supplies page (home/supplies.html).
    Edit this file to add, change or remove items; the page and its plan follow. Each item:
      id     short unique name (letters, digits, dashes); it is how checkmarks are remembered, so don't rename it
      name   what it is            why    what it's for          look   what to look for when buying

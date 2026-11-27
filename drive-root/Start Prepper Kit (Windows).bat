@@ -1,5 +1,5 @@
 @echo off
-rem Start Prepper Kit (Windows), offline prepper kit v1.17.1. Double-click this file to start the kit.
+rem Start Prepper Kit (Windows), offline prepper kit v1.18.0. Double-click this file to start the kit.
 rem It uses the kit's own portable Python (runtime\win-x64), so nothing needs to be installed and no internet is needed.
 rem Works when it sits next to the offline-prepper-kit folder (drive root) or inside it.
 title Prepper Kit

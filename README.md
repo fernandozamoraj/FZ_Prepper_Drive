@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.17.1)
+# FZ Prepper Drive (offline prepper kit v1.18.0)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
@@ -150,6 +150,18 @@ folder for Movies or for Books (type the path or **Browse…**). The kit remembe
 through them every time it starts; they show up on the Movies and Books pages for every device on the Wi-Fi.
 Phones can see the list but can't change it. Press **Look again** after adding files.
 
+### Your own documents (Add a document, Books page)
+On the **📕 Books** page, **📤 Add a document** uploads PDFs, e-books (EPUB, MOBI, AZW3, DOCX…) and single-file
+audiobooks from any phone or computer on the Wi-Fi, into a category, with an optional title and your name. They are
+copied into `uploads/<category>/` in the kit (so they go to the thumb drive with `make-drive`) and listed at the top of
+the Books page. Only the computer that runs the kit can remove one (it goes to `uploads/.trash`). You can also copy
+files into `uploads/survival/`, `uploads/medical/`… by hand. Limit 1 GB a file. Test: `python3 tests/test_uploads.py`.
+
+### Sharing the kit with phones
+The Home page shows **📶 Share this kit** with the address other devices on the same Wi-Fi open (for example
+`http://192.168.1.20:8000`) and a Copy button. No Wi-Fi (power out)? A small travel router run from a power bank makes
+one: see the Supplies page.
+
 ### Emergency supplies (checklist, buying plan, water, storage)
 Open **🧰 Supplies** in the header bar (`http://localhost:8000/supplies`): 85 things to have for outages, storms, floods
 and evacuations, from water and flashlights to a power station, ham radio and a portable travel router for the kit,
@@ -232,7 +244,9 @@ where the important documents are, and notes. **Print** gives a paper copy; keep
 | `home/books.html`, `home/movies.html`, `home/movies-add.html`, `home/software.html`, `home/media.css`, `home/media.js` | yes | Books, Movies (+ how to add more) and Software pages |
 | `books/`, `audiobooks/`, `movies/`, `software/` | no | optional modules: downloaded |
 | `home/family.html`, `home/family-crypto.js`, `tests/test_family.py` | yes | Family emergency page, its lock, its test |
+| `tests/test_uploads.py` | yes | test for Add a document and the share address |
 | `home/supplies.html`, `home/supplies-data.js`, `tests/test_supplies.py` | yes | Supplies page, its item list, its test |
+| `uploads/` | no | documents added on the Books page (copied to the drive, never to git; `.trash` stays here) |
 | `family/` | no | your locked Family page and its earlier saves, and the Supplies checkmarks (copied to the drive, never to git) |
 | `home/`, `map-viewer/index.html`, `map-viewer/style/style.json` | yes | web pages: hub, Bible search, library home page, header bar, map |
 | `routing/config.yml`, `routing/make_places.py` | yes | GraphHopper config, town list builder |

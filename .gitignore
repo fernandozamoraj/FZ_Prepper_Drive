@@ -42,6 +42,8 @@
 # Never, even inside allowed folders
 # The Family page (encrypted, but personal): it travels on the drive, never to GitHub
 /family/
+# Documents people upload on the Books page (copied to the drive, never to GitHub)
+/uploads/
 /kit-settings.json
 *.bak-*
 .DS_Store

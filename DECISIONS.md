@@ -206,3 +206,16 @@
 - **Prices** are hand-written rough ranges in `home/supplies-data.js`, not fetched: the kit is offline, and they're for
   planning only (the page says so).
 
+## 2026-11-27: Uploads open to the Wi-Fi, removal only on the kit's computer
+- **Chosen:** anyone who can open the kit can add documents (that's the point: family members' own PDFs and manuals);
+  only the computer running it can remove, and removal moves to `uploads/.trash`. Same trust model as Settings.
+- **Raw request body, not a multipart form:** Python's `cgi` module is gone from 3.13+, and a raw body streams straight
+  to disk with no parser, so big PDFs from phones don't sit in memory. The page sends with XMLHttpRequest for progress.
+- **Files kept in the kit folder** (`uploads/`), not left where they came from, so they travel to the thumb drive.
+- **Guard rails instead of a login:** file types limited to books and documents, content checked against the type,
+  no web pages (an uploaded HTML page would run with the kit's own address), size and free-space limits.
+
+## 2026-11-27: Share address on the Home page from the server
+- The page can't learn the computer's Wi-Fi address by itself when opened as `localhost`, so `/share.json` reports
+  the same address the start-up window prints (`lan_ip()`).
+

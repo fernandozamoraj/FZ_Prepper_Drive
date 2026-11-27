@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.17.1).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.18.0).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -24,6 +24,7 @@ import json
 import os
 import posixpath
 import re
+import shutil
 import signal
 import socket
 import sys
@@ -38,7 +39,7 @@ import kitplatform  # noqa: E402
 import catalog  # noqa: E402  (books, audiobooks, movies, software)
 import mimetypes  # noqa: E402
 
-VERSION = "1.17.1"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
+VERSION = "1.18.0"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
 KIT = kitplatform.KIT
 GUIDES = os.path.join(KIT, "guides")
 PORTS = {"library": 8080, "maps": 8090}
@@ -89,7 +90,7 @@ def guide_list():
 
 
 KIT_CMD = "kit.bat" if sys.platform == "win32" else "./kit.sh"  # the command on the computer running the kit
-FILE_ROOTS = {"books", "audiobooks", "movies", "software", "extra"}
+FILE_ROOTS = {"books", "audiobooks", "movies", "software", "extra", "uploads"}
 mimetypes.add_type("application/epub+zip", ".epub")
 mimetypes.add_type("video/mp4", ".m4v")
 for _ext, _type in ((".epub", "application/epub+zip"), (".m4b", "audio/mp4"), (".m4a", "audio/mp4"), (".mkv", "video/x-matroska"),
@@ -306,6 +307,71 @@ def supplies_update(body):
     return d
 
 
+# ---- Uploaded documents (Books page, "Add a document"): anyone on the Wi-Fi may add, only this computer may delete --
+UPLOADS = os.path.join(KIT, "uploads")              # uploads/<category>/<file>; files copied there by hand show up too
+UPLOAD_INDEX = os.path.join(UPLOADS, ".index.json")  # titles, who added it and when (hidden: never served)
+UPLOAD_CATS = {"survival": "Survival and preparedness", "medical": "Medical and first aid",
+               "food": "Food, water and gardening", "repair": "Repair, tools and building",
+               "radio": "Radio and communication", "manuals": "Manuals for our gear", "faith": "Faith",
+               "kids": "Kids and school", "other": "Other"}
+UPLOAD_EXT = (".pdf", ".epub", ".mobi", ".azw3", ".fb2", ".djvu", ".cbz", ".cbr", ".txt", ".rtf", ".docx", ".m4b", ".mp3")
+UPLOAD_MAX = 1 << 30           # 1 GB a file
+UPLOAD_KEEP_FREE = 2 << 30     # never fill the disk: keep 2 GB free
+UPLOAD_LOCK = threading.Lock()
+# The file has to start like what its name says (a renamed web page or program is refused)
+UPLOAD_MAGIC = {".pdf": [b"%PDF-"], ".epub": [b"PK\x03\x04"], ".docx": [b"PK\x03\x04"], ".cbz": [b"PK\x03\x04"],
+                ".djvu": [b"AT&TFORM"], ".cbr": [b"Rar!"], ".rtf": [b"{\\rtf"], ".mobi": None, ".azw3": None,
+                ".fb2": None, ".txt": None, ".m4b": None, ".mp3": None}
+
+
+def upload_index():
+    try:
+        with open(UPLOAD_INDEX, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def upload_index_save(d):
+    os.makedirs(UPLOADS, exist_ok=True)
+    with open(UPLOAD_INDEX + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=1, ensure_ascii=False)
+    os.replace(UPLOAD_INDEX + ".tmp", UPLOAD_INDEX)
+
+
+def clean_name(name):
+    """A safe file name from whatever a phone sends: no folders, no hidden files, no characters Windows refuses."""
+    name = os.path.basename(str(name).replace("\\", "/"))
+    name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', "_", name).strip().strip(".")
+    stem, ext = os.path.splitext(name)
+    stem = stem[:120].strip() or "document"
+    return stem + ext.lower()
+
+
+def clean_text(s, n):
+    return re.sub(r"[\x00-\x1f]", " ", str(s or "")).strip()[:n]
+
+
+def uploads_json(local):
+    idx, cats = upload_index(), []
+    for cid, cname in UPLOAD_CATS.items():
+        d = os.path.join(UPLOADS, cid)
+        files = sorted((f for f in kitplatform.visible_files(d, "") if f.lower().endswith(UPLOAD_EXT)
+                        and os.path.isfile(os.path.join(d, f))), key=natural)
+        items = []
+        for f in files:
+            p, key = os.path.join(d, f), f"{cid}/{f}"
+            info = idx.get(key, {})
+            items.append({"key": key, "title": info.get("title") or os.path.splitext(f)[0].replace("_", " "),
+                          "by": info.get("by", ""), "added": info.get("added") or
+                          time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(p))),
+                          "ext": os.path.splitext(f)[1][1:].lower(), "mb": round(os.path.getsize(p) / 1e6, 1),
+                          "url": "/files/uploads/" + urllib.parse.quote(key)})
+        cats.append({"id": cid, "name": cname, "items": items})
+    return {"local": local, "cats": cats, "ext": UPLOAD_EXT, "max_mb": UPLOAD_MAX >> 20, "folder": UPLOADS}
+
+
 def file_url(path):
     return "/files/" + urllib.parse.quote(os.path.relpath(path, KIT).replace(os.sep, "/"))
 
@@ -424,6 +490,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         path = urllib.parse.unquote(self.path.split("?", 1)[0])
         if path == "/ports.json":  # read by nav.js on every page (library and map are other origins)
             return self.send_json({"hub": self.server.server_address[1], **PORTS, "version": VERSION}, cors=True)
+        if path == "/share.json":  # the Home page's "Share this kit" box: the address phones on the Wi-Fi use
+            ip, port = lan_ip(), self.server.server_address[1]
+            return self.send_json({"ip": ip, "port": port, "url": f"http://{ip}:{port}/" if ip else None})
         if path == "/status.json":
             return self.send_json({n: port_up(p) and is_ours(n, p) for n, p in PORTS.items()})
         if path == "/guides.json":
@@ -452,6 +521,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                  "/supplies": "supplies.html", "/supplies-data.js": "supplies-data.js"}
         if path == "/supplies.json":
             return self.send_json(supplies_load())
+        if path == "/uploads.json":
+            return self.send_json(uploads_json(self.is_local()))
         if path.rstrip("/") in pages:
             self.path = "/home/" + pages[path.rstrip("/")]
             return super().do_GET()
@@ -504,6 +575,10 @@ running may be an older version that doesn't have this page yet.</p>
                 return self.not_found()
         else:
             path = os.path.join(KIT, *parts)
+            if parts[0] == "uploads":
+                if len(parts) != 3 or parts[1] not in UPLOAD_CATS or not parts[2].lower().endswith(UPLOAD_EXT):
+                    return self.not_found()  # only the documents the Books page lists
+                path = os.path.join(UPLOADS, parts[1], parts[2])
         if not os.path.isfile(path):
             return self.not_found()
         size = os.path.getsize(path)
@@ -528,6 +603,7 @@ running may be an older version that doesn't have this page yet.</p>
         ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
         self.send_header("Content-Type", ctype)
         self.send_header("Accept-Ranges", "bytes")
+        self.send_header("X-Content-Type-Options", "nosniff")  # an uploaded .txt is shown as text, never run as a page
         self.send_header("Content-Length", str(end - start + 1))
         if parts[0] == "software" or "download" in self.path.partition("?")[2]:  # ?download: save, don't play
             name = urllib.parse.quote(parts[-1])
@@ -563,7 +639,8 @@ running may be an older version that doesn't have this page yet.</p>
 
     def do_POST(self):
         path = urllib.parse.unquote(self.path.split("?", 1)[0])
-        if path not in ("/settings.json", "/settings/rescan", "/family.json", "/family/forget", "/supplies.json"):
+        if path not in ("/settings.json", "/settings/rescan", "/family.json", "/family/forget", "/supplies.json",
+                        "/uploads", "/uploads/delete"):
             return self.not_found()
         origin = urllib.parse.urlsplit(self.headers.get("Origin") or "")
         if origin.netloc and ((origin.port or 80) != self.server.server_address[1] or
@@ -571,6 +648,8 @@ running may be an older version that doesn't have this page yet.</p>
             return self.send_error_json(403, "Changes must come from the kit's own pages.")
         if path.startswith("/family"):
             return self.post_family(path)
+        if path.startswith("/uploads"):
+            return self.post_upload(path)
         if path == "/supplies.json":  # anyone on the home Wi-Fi may tick items off (it's a household list)
             if not (self.headers.get("Content-Type") or "").startswith("application/json"):
                 return self.send_error_json(415, "Send JSON.")
@@ -622,6 +701,86 @@ running may be an older version that doesn't have this page yet.</p>
             return self.send_error_json(500, f"Could not save {catalog.SETTINGS_FILE}: {e.strerror or e}")
         scan_folders()
         return self.send_json(settings_json(True))
+
+    def post_upload(self, path):
+        """/uploads?cat=&name=&title=&by= with the file as the request body (any device on the Wi-Fi).
+        /uploads/delete {"key": "cat/file"}: this computer only; the file goes to uploads/.trash, not deleted."""
+        def refuse(code, msg):
+            self.close_connection = True  # don't read a big body we are refusing
+            return self.send_error_json(code, msg)
+        if self.headers.get("X-Kit-Upload") != "1":  # a header other web sites can't send without asking first
+            return refuse(403, "Uploads must come from the kit's own Books page.")
+        if path == "/uploads/delete":
+            if not self.is_local():
+                return refuse(403, "Documents can only be removed on the computer that runs the kit.")
+            try:
+                key = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 4096)) or b"{}")["key"]
+                cat, name = key.split("/")
+                assert cat in UPLOAD_CATS and name == clean_name(name) and name.lower().endswith(UPLOAD_EXT)
+            except (ValueError, KeyError, TypeError, AssertionError, AttributeError):
+                return refuse(400, "Bad request.")
+            src = os.path.join(UPLOADS, cat, name)
+            with UPLOAD_LOCK:
+                if not os.path.isfile(src):
+                    return refuse(404, "That document is not there any more.")
+                os.makedirs(os.path.join(UPLOADS, ".trash"), exist_ok=True)
+                os.replace(src, os.path.join(UPLOADS, ".trash", time.strftime("%Y%m%d-%H%M%S-") + name))
+                idx = upload_index()
+                idx.pop(key, None)
+                upload_index_save(idx)
+            return self.send_json(uploads_json(True))
+        q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        arg = lambda k: q.get(k, [""])[0]  # noqa: E731
+        cat, name = arg("cat"), clean_name(arg("name"))
+        ext = os.path.splitext(name)[1]
+        if cat not in UPLOAD_CATS:
+            return refuse(400, "Pick a category.")
+        if ext not in UPLOAD_EXT:
+            return refuse(415, f"{ext or 'That kind of file'} can't be added. Books and documents only: "
+                               + ", ".join(e[1:].upper() for e in UPLOAD_EXT) + ".")
+        try:
+            size = int(self.headers.get("Content-Length") or -1)
+        except ValueError:
+            size = -1
+        if size <= 0:
+            return refuse(411, "Empty file, or the browser didn't say how big it is.")
+        if size > UPLOAD_MAX:
+            return refuse(413, f"Too big: the limit is {UPLOAD_MAX >> 20} MB a file.")
+        os.makedirs(os.path.join(UPLOADS, cat), exist_ok=True)
+        if shutil.disk_usage(UPLOADS).free - size < UPLOAD_KEEP_FREE:
+            return refuse(507, "Not enough free space on the kit's disk for this file.")
+        tmp = os.path.join(UPLOADS, f".incoming-{threading.get_ident()}-{time.time_ns()}")
+        try:
+            left, first = size, b""
+            with open(tmp, "wb") as f:
+                while left > 0:
+                    chunk = self.rfile.read(min(1 << 20, left))
+                    if not chunk:
+                        raise ConnectionError("the upload stopped part way")
+                    if not first:
+                        first = chunk[:16]
+                    f.write(chunk)
+                    left -= len(chunk)
+            magic = UPLOAD_MAGIC.get(ext)
+            if magic and not any(first.startswith(m) for m in magic):
+                os.remove(tmp)
+                return refuse(415, f"That file doesn't look like a real {ext[1:].upper()}.")
+            with UPLOAD_LOCK:
+                final, n = os.path.join(UPLOADS, cat, name), 2
+                while os.path.exists(final):  # never replace someone else's file: "name (2).pdf"
+                    final = os.path.join(UPLOADS, cat, f"{os.path.splitext(name)[0]} ({n}){ext}")
+                    n += 1
+                os.replace(tmp, final)
+                key = f"{cat}/{os.path.basename(final)}"
+                idx = upload_index()
+                idx[key] = {"title": clean_text(arg("title"), 200) or os.path.splitext(name)[0].replace("_", " "),
+                            "by": clean_text(arg("by"), 60), "added": time.strftime("%Y-%m-%d")}
+                upload_index_save(idx)
+        except (OSError, ConnectionError) as e:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            return refuse(500, f"Could not save the file: {getattr(e, 'strerror', None) or e}")
+        return self.send_json({"ok": True, "key": key, **uploads_json(self.is_local())})
 
     def post_family(self, path):
         """/family.json: save the locked file. The first one can only be made on the computer running the kit; after

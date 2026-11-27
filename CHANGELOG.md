@@ -1,5 +1,23 @@
 # Changelog: offline prepper kit
 
+## 1.18.0 (2026-11-27)
+- **Add a document** (Books page): anyone on the Wi-Fi can upload PDFs, e-books (EPUB, MOBI, AZW3, FB2, DjVu, CBZ/CBR,
+  TXT, RTF, DOCX) and single-file audiobooks (M4B, MP3), several at once with a progress bar, into a category
+  (Survival, Medical, Food and water, Repair, Radio, Manuals for our gear, Faith, Kids and school, Other), with an
+  optional title and "your name". They show at the top of the Books page ("added by Maria") and work with its filter.
+- Saved in `uploads/<category>/` inside the kit (so `make-drive` takes them along, never replacing a newer copy on the
+  drive), never in git. Files copied there by hand show up too. Titles and names in `uploads/.index.json`.
+- Safety: only the listed file types; the file must really be what its name says (PDF, EPUB/DOCX/CBZ, DjVu, RAR, RTF
+  signatures); web pages and programs refused; names cleaned (no folders, hidden files or characters Windows refuses);
+  same name twice keeps both ("name (2).pdf"); 1 GB a file and 2 GB always left free; a header other web sites can't
+  send; files served with `nosniff`. Only the computer that runs the kit can **Remove**, and removed files go to
+  `uploads/.trash` (not copied to the drive), not erased.
+- **Share this kit** box at the top of the Home page: the address phones and other computers on the same Wi-Fi open
+  (e.g. `http://192.168.1.20:8000`), with a Copy button; says so when the computer isn't on a network (`/share.json`).
+- Tested: `tests/test_uploads.py` (26 checks) plus the Family and Supplies tests; in the browser pane against a test
+  hub: upload from the page (a PDF accepted, an .html refused with the reason), listing, filter, open, phone width,
+  Share box. Not tried: uploading from a real phone's file picker (the browser pane can't open one), a 1 GB file, Windows.
+
 ## 1.17.1 (2026-11-27)
 - Supplies: **Family tent** (set up indoors in the warm room to trap body heat; shelter if you must leave; freestanding,
   never a heater inside) and **Sleeping pad** per person (R-value 4+ for winter) as their own items in Heat and

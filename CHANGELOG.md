@@ -1,5 +1,23 @@
 # Changelog: offline prepper kit
 
+## 1.17.0 (2026-11-27)
+- **Emergency supplies page** (`/supplies`, 🧰 in the header bar, a card on the Home page): 83 items in 12 groups (water,
+  food, first aid and medicine, light, power, heat and sleeping, cooking, communication, flood and water safety, tools and
+  go-bags, sanitation, documents and money). Each has why it matters, what to look for, a rough US price range (late
+  2026), how to store it and safety warnings (carbon monoxide, fuel storage, floodwater, tourniquets). Includes a
+  **portable travel router** to run the kit's Wi-Fi at home in an outage or on the road, and a UPS for the home router.
+- **Checklist** shared by every device on the Wi-Fi: ✓ have it, ✕ not needed in our home; search, phase filter, hide
+  what we have, progress bar and money still to spend. Per-person items scale with the household size.
+- **Buying plan**: what's left, cheap life-savers first (4 phases), spread month by month over your monthly budget,
+  with "save up N months" for big items; printable.
+- **Water calculator** (people, pets, days, hot weather → gallons, cases, jugs, drums, weight) and hidden water at home.
+- **Storing it**: where to keep supplies, rotation, the twice-a-year check, fuel safety, buying little by little.
+- Items live in `home/supplies-data.js` (easy to edit). Checkmarks in `family/supplies.json` (not git, copied to the
+  drive with the same newer-copy guard); server `GET/POST /supplies.json` merges one change at a time.
+- Tested: `tests/test_supplies.py` (item list sanity through node, endpoints, merge of two devices, bad input, other
+  site refused) and in the browser pane against a test hub at phone width (checklist, not-needed, people scaling,
+  search, plan, water calculator; fixed a dropdown that widened the page). Not tried: a real phone, printing on paper.
+
 ## 1.16.0 (2026-11-27)
 - **Family emergency page** (`/family`, 👪 in the header bar, a card on the Home page): your own emergency contacts,
   meeting places, household medical information (allergies, medicines, blood type, conditions), doctors/pharmacy/

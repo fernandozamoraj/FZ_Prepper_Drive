@@ -197,3 +197,12 @@
 - **Trade-off:** a forgotten password can't be recovered. The page says so before setup and suggests a written-down
   password and a printed copy.
 
+## 2026-11-27: Supplies checklist shared on the server, not encrypted
+- **Chosen:** checkmarks, household size and budget in `family/supplies.json`, plain JSON. Anyone on the home Wi-Fi may
+  tick items; each POST changes one thing and the server merges it, so two phones never undo each other.
+- **Why not the Family page's lock:** it's a household shopping list that kids and guests may help with; a password
+  would get in the way. It only says which supplies you have, not where or anything personal. It still stays out of git.
+- **Why not browser storage:** each phone would have its own list.
+- **Prices** are hand-written rough ranges in `home/supplies-data.js`, not fetched: the kit is offline, and they're for
+  planning only (the page says so).
+

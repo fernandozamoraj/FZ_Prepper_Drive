@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tests/test_family.py (offline prepper kit v1.16.0): the Family page's lock (home/family-crypto.js) and its server
+"""tests/test_family.py (offline prepper kit v1.17.0): the Family page's lock (home/family-crypto.js) and its server
 side (bin/intranet.py /family.json, /family/forget).
 
     python3 tests/test_family.py        (needs node for the JavaScript half; uses a temporary folder, not family/)

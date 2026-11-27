@@ -1,4 +1,4 @@
-/* media.js (offline prepper kit v1.16.0): helpers shared by the Books, Movies and Software pages. */
+/* media.js (offline prepper kit v1.17.0): helpers shared by the Books, Movies and Software pages. */
 window.fzMedia = (() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   // A command to type on the computer that runs the kit, with a Copy button

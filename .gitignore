@@ -26,6 +26,7 @@
 !/home/nav.js
 !/home/viewer_settings.js
 !/home/family-crypto.js
+!/home/supplies-data.js
 !/tests/*.py
 !/map-viewer/index.html
 !/map-viewer/style/style.json

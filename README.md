@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.16.0)
+# FZ Prepper Drive (offline prepper kit v1.17.0)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
@@ -150,6 +150,15 @@ folder for Movies or for Books (type the path or **Browse…**). The kit remembe
 through them every time it starts; they show up on the Movies and Books pages for every device on the Wi-Fi.
 Phones can see the list but can't change it. Press **Look again** after adding files.
 
+### Emergency supplies (checklist, buying plan, water, storage)
+Open **🧰 Supplies** in the header bar (`http://localhost:8000/supplies`): 83 things to have for outages, storms, floods
+and evacuations, from water and flashlights to a power station, ham radio and a portable travel router for the kit,
+each with why, what to look for, a rough price and how to store it. Set the number of people and a monthly budget;
+check off what you have (✕ for what your home doesn't need) and the **Buying plan** tab spreads the rest over the
+months, cheapest life-savers first. Also a **Water calculator** and **Storing it** tips. Checkmarks are shared by
+every device and kept in `family/supplies.json`. To change the list, edit `home/supplies-data.js` (its top comment
+explains the fields) and run `python3 tests/test_supplies.py`.
+
 ### Family emergency page (your own information, locked)
 Open **👪 Family** in the header bar (`http://localhost:8000/family`). The first time, on the computer that runs the kit,
 choose a password (three or four random words work well) and fill in what you can: emergency contacts (put an
@@ -223,7 +232,8 @@ where the important documents are, and notes. **Print** gives a paper copy; keep
 | `home/books.html`, `home/movies.html`, `home/movies-add.html`, `home/software.html`, `home/media.css`, `home/media.js` | yes | Books, Movies (+ how to add more) and Software pages |
 | `books/`, `audiobooks/`, `movies/`, `software/` | no | optional modules: downloaded |
 | `home/family.html`, `home/family-crypto.js`, `tests/test_family.py` | yes | Family emergency page, its lock, its test |
-| `family/` | no | your locked Family page and its earlier saves (copied to the drive, never to git) |
+| `home/supplies.html`, `home/supplies-data.js`, `tests/test_supplies.py` | yes | Supplies page, its item list, its test |
+| `family/` | no | your locked Family page and its earlier saves, and the Supplies checkmarks (copied to the drive, never to git) |
 | `home/`, `map-viewer/index.html`, `map-viewer/style/style.json` | yes | web pages: hub, Bible search, library home page, header bar, map |
 | `routing/config.yml`, `routing/make_places.py` | yes | GraphHopper config, town list builder |
 | `bible/build-bible.py` | yes | builds the Bible library |

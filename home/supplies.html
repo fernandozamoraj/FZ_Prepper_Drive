@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emergency Supplies</title>
+<!-- Offline prepper kit v1.17.0: emergency supplies checklist, buying plan, water calculator and storage tips.
+     Served by bin/intranet.py at /supplies. Items live in home/supplies-data.js; checkmarks in family/supplies.json. -->
+<link rel="stylesheet" href="/media.css">
+<style>
+.hh{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:12px 14px;margin:0 0 14px;box-shadow:var(--shadow)}
+.hh label{display:inline-flex;gap:8px;align-items:center;font-weight:600;font-size:14px}
+.hh input,.toolbar select,.wc input,.wc select{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+.hh input{width:90px}
+.prog{flex:1;min-width:220px}
+.meter{height:10px;border-radius:99px;background:var(--chip);overflow:hidden;margin-top:5px}
+.meter span{display:block;height:100%;background:var(--accent)}
+.toolbar select{padding:9px 10px;max-width:100%;min-width:0}
+.grp{margin-top:22px}
+.grp h2 .ico{font-size:19px}
+.grp .intro{color:var(--muted);font-size:14px;margin:-2px 0 10px}
+.it{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:0 0 8px;box-shadow:var(--shadow)}
+.it.have{opacity:.62}
+.it.skip{opacity:.45}
+.it .head{display:flex;gap:10px;align-items:center;padding:10px 12px}
+.it .head input[type=checkbox]{width:22px;height:22px;flex:none;accent-color:var(--accent);cursor:pointer}
+.it .nm{flex:1;min-width:0}
+.it .nm b{font-size:16px}
+.it .nm small{color:var(--muted)}
+.ph{display:inline-block;font:700 11px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;border-radius:99px;padding:3px 7px;
+  background:var(--chip);color:var(--muted);margin-left:6px;vertical-align:2px;white-space:nowrap}
+.ph.p1{background:var(--accent);color:var(--accent-ink)}
+.price{white-space:nowrap;font-weight:600;font-size:14px;text-align:right}
+.it details{border-top:1px solid var(--line)}
+.it summary{cursor:pointer;padding:6px 12px;color:var(--muted);font-size:13px}
+.it .body{padding:0 14px 12px;font-size:15px}
+.it .body p{margin:6px 0}
+.it .body .k{font-weight:700}
+.warn{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;padding:7px 10px;margin:8px 0}
+.skipbtn{all:unset;cursor:pointer;font-size:12px;color:var(--muted);padding:4px 6px;border-radius:6px;white-space:nowrap}
+.skipbtn:hover{background:var(--chip)}
+.month{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 10px;box-shadow:var(--shadow);break-inside:avoid}
+.month h3{margin:0 0 6px;font-size:16px;display:flex;justify-content:space-between;gap:10px}
+.month ul{margin:0;padding-left:20px}
+.month li{margin:3px 0}
+.month li small{color:var(--muted)}
+.wc{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:14px;box-shadow:var(--shadow)}
+.wc label{display:block;font-weight:600;font-size:14px;margin-bottom:4px}
+.wc input,.wc select{width:100%}
+.big{font-size:34px;font-weight:800;letter-spacing:-.02em;color:var(--accent)}
+.res{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:12px}
+.res .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.res .card small{color:var(--muted)}
+.prose{max-width:760px}
+.prose h3{margin:22px 0 6px}
+.prose li{margin:5px 0}
+.printonly{display:none}
+@media print{
+  #fznav,.noprint,.toolbar,.tabs,.hh .noprint,.skipbtn{display:none!important}
+  .printonly{display:block}
+  body{background:#fff;color:#000;font-size:12px}
+  .wrap{max-width:none;padding:0}
+  .it,.month{box-shadow:none;break-inside:avoid}
+  .it details[open] summary{display:none}
+  .it.have{opacity:1}
+}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<script src="/media.js"></script>
+<script src="/supplies-data.js"></script>
+<div class="wrap">
+  <h1>🧰 Emergency supplies</h1>
+  <p class="sub">What to have for power outages, storms, floods and evacuations: why each thing matters, what to look for,
+    rough prices, and a plan to get it little by little. Check off what you have; everyone on the Wi-Fi sees the same list.</p>
+
+  <div class="hh">
+    <label>People at home <input type="number" id="people" min="1" max="30" value="4"></label>
+    <label>Monthly budget $ <input type="number" id="budget" min="5" max="100000" step="5" value="100"></label>
+    <div class="prog"><small id="progtxt">Loading…</small><div class="meter"><span id="progbar" style="width:0"></span></div></div>
+  </div>
+
+  <div class="tabs noprint" role="tablist">
+    <button class="tab" role="tab" data-tab="list" aria-selected="true">✅ Checklist</button>
+    <button class="tab" role="tab" data-tab="plan" aria-selected="false">🗓️ Buying plan</button>
+    <button class="tab" role="tab" data-tab="water" aria-selected="false">💧 Water calculator</button>
+    <button class="tab" role="tab" data-tab="storage" aria-selected="false">📦 Storing it</button>
+  </div>
+  <div id="note"></div>
+
+  <section id="tab-list">
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="Search… e.g. radio, heater, water" aria-label="Search supplies">
+      <select id="phase" aria-label="Phase"><option value="">All phases</option></select>
+      <label><input type="checkbox" id="hidehave"> Hide what we have</label>
+      <button class="btn noprint" type="button" data-print>🖨️ Print</button>
+    </div>
+    <p class="muted" style="margin:4px 0 0"><small>Prices are rough US ranges (late 2026) to help plan, not quotes: check
+      before buying. ✕ marks something your home doesn't need (no pets, no basement…) so it leaves the plan.</small></p>
+    <div id="list"></div>
+  </section>
+
+  <section id="tab-plan" hidden>
+    <p class="prose">The things you don't have yet, in order: the cheap life-savers first (phase 1), then two weeks at home,
+      then long outages, then the big items. Each month spends about your monthly budget; something that costs more is
+      bought in the month your savings reach it. Change the budget above and the plan follows. Uses the middle of each
+      price range.</p>
+    <p class="noprint"><button class="btn" type="button" data-print>🖨️ Print the plan</button></p>
+    <div class="printonly" id="planhead"></div>
+    <div id="plan"></div>
+  </section>
+
+  <section id="tab-water" hidden>
+    <div class="wc">
+      <div><label for="wpeople">People</label><input type="number" id="wpeople" min="1" max="30" value="4"></div>
+      <div><label for="wpets">Pets (cats, dogs)</label><input type="number" id="wpets" min="0" max="20" value="0"></div>
+      <div><label for="wdays">How long</label><select id="wdays">
+        <option value="3">3 days (go-bag / evacuation)</option><option value="14" selected>2 weeks (at home)</option>
+        <option value="30">1 month</option><option value="60">2 months</option></select></div>
+      <div><label for="whot">Weather</label><select id="whot"><option value="1">Normal</option>
+        <option value="2">Hot climate / summer (double)</option></select></div>
+    </div>
+    <div id="wout"></div>
+    <div class="prose">
+      <h3>Good to know</h3>
+      <ul>
+        <li><b>1 gallon per person per day</b> covers drinking (about half) and basic washing and cooking. Children, nursing
+          mothers, sick people and hot weather need more. Pets: about an ounce per pound of body weight a day (a 50-lb dog
+          drinks about 1/3 gallon); the calculator uses 1/2 gallon per pet.</li>
+        <li><b>Hidden water at home:</b> the water heater tank (30–50 gallons: turn off its power or gas first, then drain
+          from the bottom valve), the toilet tank (not the bowl), ice cubes and canned fruit and vegetable juices. Fill the
+          bathtub and every pot when a storm is coming.</li>
+        <li><b>Make questionable water safe:</b> let it settle and pour it through a cloth, then boil it 1 minute (3 minutes
+          above 6,500 ft), or add 8 drops of 6% unscented bleach per gallon and wait 30 minutes; or use a filter (it doesn't
+          stop viruses: add bleach too if sewage could be in it). See the EPA guide in <a href="/#guides">PDF guides</a>.</li>
+        <li><b>Don't ration water.</b> Drink what you need today and look for more tomorrow.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="tab-storage" hidden class="prose">
+    <h3>Where to keep it</h3>
+    <ul>
+      <li><b>Cool, dark and dry</b> (ideally 50–70°F). The living space beats the attic, garage and car: heat ruins food,
+        medicine, batteries and water containers faster than anything. Under beds, closet floors and behind furniture work.</li>
+      <li><b>In labeled bins by job:</b> "Power outage" (lights, radio, batteries, power banks), "Water", "First aid and
+        medicine", "Cooking", "Sanitation". Clear plastic totes, labeled on the front and the top, so anyone can find
+        things in the dark.</li>
+      <li><b>Spread it out:</b> the main supply at home, a go-bag per person near the door, a kit in each car, a small kit
+        at work or school. A fire or flood shouldn't take everything at once.</li>
+      <li><b>Up high if you can flood:</b> nothing important on a basement floor; waterproof bins on shelves.</li>
+      <li><b>Fuel outside the living space:</b> propane cylinders and tanks outdoors or in a detached shed, upright and
+        shaded; gasoline in approved cans with stabilizer, away from the house, used within 6–12 months. Never fuel in the
+        house, basement or an attached garage near living space.</li>
+      <li><b>Water:</b> off bare concrete and away from chemicals (plastic absorbs fumes), out of the sun, with room to expand
+        if it could freeze.</li>
+      <li><b>Keep it private.</b> Don't advertise your supplies.</li>
+    </ul>
+    <h3>Keep it fresh</h3>
+    <ul>
+      <li><b>First in, first out:</b> put new food, water and batteries behind the old ones and eat or use from the front.
+        Write the purchase or expiry date in marker on everything.</li>
+      <li><b>Twice a year</b> (when the clocks change): check dates on food, water, medicine and batteries; charge the power
+        banks and power station; test the radios, CO and smoke alarms and flashlights; start the generator; update go-bag
+        clothes for the season; refresh water you filled yourself (every 6 months).</li>
+      <li><b>Practice once a year:</b> a "lights-out evening" or weekend with the power off. You'll find what's missing while it
+        doesn't matter. Include starting this kit on the travel router with the internet unplugged.</li>
+    </ul>
+    <h3>Buying little by little</h3>
+    <ul>
+      <li><b>A little every grocery trip:</b> one extra can, one pack of batteries, one gallon of water. In a few months the
+        food and water phases are done without a big bill.</li>
+      <li><b>Buy before, not during:</b> after a warning, shelves empty and prices jump. Buy heaters in summer and fans in
+        winter, when they're on sale.</li>
+      <li><b>Sales-tax holidays:</b> some states (Texas and Alabama, for example) have tax-free days for emergency supplies.
+        Check yours.</li>
+      <li><b>Spend on what protects life</b> (CO alarms, a genuine tourniquet, life jackets, an indoor-rated heater) and
+        save money everywhere else. Used gear is fine for tarps, coolers and tools.</li>
+      <li><b>Use what you already own first:</b> camping gear, the grill, the car, winter clothes.</li>
+      <li><b>Learn skills too</b>, many free: first aid/CPR, Stop the Bleed, swimming, a ham license, CERT training from
+        your local emergency management office.</li>
+    </ul>
+  </section>
+  <footer>Offline prepper kit v1.17.0 · items in <code>home/supplies-data.js</code></footer>
+</div>
+<script>
+const {esc, json, store} = fzMedia;
+const GROUPS = window.SUPPLY_GROUPS, PHASES = window.SUPPLY_PHASES;
+const ALL = GROUPS.flatMap(g => g.items.map(it => Object.assign(it, {group: g})));
+let S = {people: 4, budget: 100, items: {}};   // /supplies.json, shared by every device
+
+const money = n => '$' + Math.round(n).toLocaleString();
+const mult = it => it.per === 'person' ? S.people : 1;
+const cost = it => it.price ? [it.price[0] * mult(it), it.price[1] * mult(it)] : null;
+const mid = it => { const c = cost(it); return c ? (c[0] + c[1]) / 2 : 0; };
+const status = it => S.items[it.id] || '';
+const priceTxt = it => { const c = cost(it); if (!c) return 'varies'; if (!c[1]) return 'free';
+  return (c[0] === c[1] ? money(c[0]) : `${money(c[0])}–${money(c[1])}`) + (it.per === 'person' ? `<br><small class="muted">for ${S.people}</small>` : ''); };
+
+function progress() {
+  const need = ALL.filter(it => status(it) !== 'skip'), have = need.filter(it => status(it) === 'have');
+  const left = need.filter(it => status(it) !== 'have').reduce((a, it) => { const c = cost(it) || [0, 0]; return [a[0] + c[0], a[1] + c[1]]; }, [0, 0]);
+  document.getElementById('progtxt').textContent = `${have.length} of ${need.length} things · still to get: about ${money(left[0])}–${money(left[1])}`;
+  document.getElementById('progbar').style.width = (need.length ? 100 * have.length / need.length : 0) + '%';
+}
+
+function itemHTML(it) {
+  const st = status(it);
+  return `<div class="it ${st}" data-id="${it.id}">
+    <div class="head"><input type="checkbox" data-have="${it.id}" ${st === 'have' ? 'checked' : ''} aria-label="We have: ${esc(it.name)}">
+      <div class="nm"><b>${esc(it.name)}</b><span class="ph p${it.phase}">${esc(PHASES[it.phase][0])}</span>${it.per === 'person' ? ' <small>· each person</small>' : ''}
+        ${st === 'skip' ? ' <small>· not needed</small>' : ''}</div>
+      <div class="price">${priceTxt(it)}</div>
+      <button class="skipbtn" type="button" data-skip="${it.id}" title="${st === 'skip' ? 'We need this after all' : 'Not needed in our home'}">${st === 'skip' ? '↩︎' : '✕'}</button></div>
+    <details${store.get('open:' + it.id, false) ? ' open' : ''} data-det="${it.id}"><summary>Why, what to look for${it.store ? ', storing' : ''}</summary><div class="body">
+      <p><span class="k">Why:</span> ${esc(it.why)}</p>
+      <p><span class="k">Look for:</span> ${esc(it.look)}</p>
+      ${it.store ? `<p><span class="k">Storing:</span> ${esc(it.store)}</p>` : ''}
+      ${it.warn ? `<div class="warn">⚠️ ${esc(it.warn)}</div>` : ''}
+      ${it.link ? `<p><a href="${esc(it.link)}">Open on this kit →</a></p>` : ''}</div></details></div>`;
+}
+
+function renderList() {
+  const q = document.getElementById('q').value.trim().toLowerCase(), ph = document.getElementById('phase').value,
+    hide = document.getElementById('hidehave').checked;
+  const show = it => (!ph || String(it.phase) === ph) && (!hide || status(it) !== 'have') &&
+    (!q || [it.name, it.why, it.look, it.store, it.group.name].join(' ').toLowerCase().includes(q));
+  const html = GROUPS.map(g => {
+    const items = g.items.filter(show);
+    if (!items.length) return '';
+    const have = g.items.filter(it => status(it) === 'have').length, need = g.items.filter(it => status(it) !== 'skip').length;
+    return `<section class="grp"><h2><span class="ico">${g.icon}</span>${esc(g.name)} <small>${have} of ${need}</small></h2>
+      <p class="intro">${esc(g.intro)}</p>${items.map(itemHTML).join('')}</section>`;
+  }).join('');
+  document.getElementById('list').innerHTML = html || '<p class="muted" style="margin-top:20px">Nothing matches.</p>';
+}
+
+function renderPlan() {
+  const B = Math.max(5, +S.budget || 0), todo = ALL.filter(it => !status(it))
+    .sort((a, b) => a.phase - b.phase || GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group) || a.group.items.indexOf(a) - b.group.items.indexOf(b));
+  document.getElementById('planhead').textContent = `Buying plan for ${S.people} people at ${money(B)} a month · printed ${new Date().toLocaleDateString()}`;
+  if (!todo.length) { document.getElementById('plan').innerHTML = '<div class="banner"><h3>All done 🎉</h3><p>Everything on the list is checked off or marked not needed. Keep it fresh: see “Storing it”.</p></div>'; return; }
+  const months = [];
+  let spent = 0;
+  for (const it of todo) {
+    const c = mid(it), m = Math.max(1, Math.ceil((spent + c) / B - 1e-9));
+    const saving = c > B ? Math.ceil(c / B) : 0;
+    spent += c;
+    (months[m] = months[m] || []).push({it, c, saving});
+  }
+  const total = todo.reduce((a, it) => a + mid(it), 0), byPhase = {};
+  todo.forEach(it => byPhase[it.phase] = (byPhase[it.phase] || 0) + mid(it));
+  let html = `<p><b>${todo.length} things, about ${money(total)} in all: ${Math.ceil(total / B)} months at ${money(B)} a month.</b><br>
+    <small class="muted">${Object.entries(byPhase).map(([p, v]) => `${PHASES[p][0]}: ${money(v)}`).join(' · ')}</small></p>`;
+  const now = new Date();
+  months.forEach((list, m) => {
+    if (!list) return;
+    const d = new Date(now.getFullYear(), now.getMonth() + m - 1, 1);
+    html += `<div class="month"><h3><span>Month ${m} · ${d.toLocaleDateString(undefined, {month: 'long', year: 'numeric'})}</span>
+      <span>${money(list.reduce((a, x) => a + x.c, 0))}</span></h3><ul>${list.map(({it, c, saving}) =>
+      `<li><label><input type="checkbox" data-have="${it.id}" class="noprint"> ${esc(it.name)}</label>
+        <small>· ${c ? money(c) : (it.price ? 'free' : 'cost varies')}${saving ? ` · save up ${saving} months` : ''} · ${esc(PHASES[it.phase][0])}</small></li>`).join('')}</ul></div>`;
+  });
+  document.getElementById('plan').innerHTML = html;
+}
+
+function renderWater() {
+  const n = v => Math.max(0, +document.getElementById(v).value || 0);
+  const per = n('wpeople') + 0.5 * n('wpets'), days = n('wdays'), g = Math.ceil(per * days * n('whot'));
+  document.getElementById('wout').innerHTML = `<div class="res">
+    <div class="card"><small>You need about</small><div class="big">${g.toLocaleString()} gal</div><small>${per} gal a day × ${days} days${n('whot') > 1 ? ' × 2 for heat' : ''}</small></div>
+    <div class="card"><small>That is</small><div class="big">${Math.ceil(g / 3.17).toLocaleString()}</div><small>cases of 24 bottles (16.9 oz, 3.17 gal a case)</small></div>
+    <div class="card"><small>Or</small><div class="big">${Math.ceil(g / 5).toLocaleString()}</div><small>5-gallon jugs · or ${(g / 55).toFixed(1)} 55-gallon drums</small></div>
+    <div class="card"><small>It weighs</small><div class="big">${Math.round(g * 8.34).toLocaleString()} lb</div><small>8.34 lb a gallon: spread it out, don't stack it on a weak shelf</small></div></div>`;
+}
+
+function renderAll() {
+  document.getElementById('people').value = S.people;
+  document.getElementById('budget').value = S.budget;
+  progress(); renderList(); renderPlan();
+}
+
+let saveErr = null;
+async function save(body) {
+  try {
+    const r = await fetch('/supplies.json', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Could not save.');
+    S = d; saveErr = null;
+  } catch (e) { saveErr = e.message; }
+  document.getElementById('note').innerHTML = saveErr ? `<div class="banner"><h3>Not saved</h3><p>${esc(saveErr)} The checkmarks on this screen may not match the kit; reload the page.</p></div>` : '';
+  renderAll();
+}
+
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.have) { S.items[t.dataset.have] = t.checked ? 'have' : ''; renderAll(); save({items: {[t.dataset.have]: t.checked ? 'have' : ''}}); }
+  else if (t.id === 'people' || t.id === 'budget') {
+    const v = Math.round(+t.value);
+    if (!(v > 0)) return;
+    S[t.id] = v; if (t.id === 'people') document.getElementById('wpeople').value = v;
+    renderAll(); renderWater(); save({[t.id]: v});
+  }
+  else if (['wpeople', 'wpets', 'wdays', 'whot'].includes(t.id)) renderWater();
+  else if (['phase', 'hidehave'].includes(t.id)) renderList();
+});
+document.addEventListener('input', e => { if (e.target.id === 'q') renderList(); if (['wpeople', 'wpets'].includes(e.target.id)) renderWater(); });
+document.addEventListener('toggle', e => { const d = e.target; if (d.dataset && d.dataset.det) store.set('open:' + d.dataset.det, d.open); }, true);
+document.addEventListener('click', e => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  if (t.dataset.skip) { const id = t.dataset.skip, v = status({id}) === 'skip' ? '' : 'skip'; S.items[id] = v; renderAll(); save({items: {[id]: v}}); }
+  else if (t.dataset.tab) showTab(t.dataset.tab);
+  else if ('print' in t.dataset) window.print();
+});
+function showTab(name) {
+  if (!['list', 'plan', 'water', 'storage'].includes(name)) name = 'list';
+  document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === name));
+  ['list', 'plan', 'water', 'storage'].forEach(n => document.getElementById('tab-' + n).hidden = n !== name);
+  store.set('supplies:tab', name);
+  if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+}
+
+const sel = document.getElementById('phase');
+Object.entries(PHASES).forEach(([p, [n, d]]) => sel.insertAdjacentHTML('beforeend', `<option value="${p}">${esc(n)}: ${esc(d)}</option>`));
+showTab((location.hash || '').slice(1) || store.get('supplies:tab', 'list'));
+renderWater();
+json('/supplies.json').then(d => { S = d; document.getElementById('wpeople').value = S.people; renderAll(); renderWater(); })
+  .catch(() => { document.getElementById('note').innerHTML = '<div class="banner"><h3>Checkmarks not loaded</h3><p>The list works, but your checkmarks could not be read. If you just updated the kit, close its window and start it again.</p></div>'; renderAll(); });
+</script>
+</body>
+</html>

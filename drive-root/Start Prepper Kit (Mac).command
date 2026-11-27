@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start Prepper Kit (Mac), offline prepper kit v1.16.0. Double-click this file to start the kit.
+# Start Prepper Kit (Mac), offline prepper kit v1.17.0. Double-click this file to start the kit.
 # It uses the kit's own portable Python (runtime/), so nothing needs to be installed and no internet is needed.
 # Works when it sits next to the offline-prepper-kit folder (drive root) or inside it.
 cd "$(dirname "$0")" || exit 1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.16.0).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.17.0).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -38,7 +38,7 @@ import kitplatform  # noqa: E402
 import catalog  # noqa: E402  (books, audiobooks, movies, software)
 import mimetypes  # noqa: E402
 
-VERSION = "1.16.0"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
+VERSION = "1.17.0"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
 KIT = kitplatform.KIT
 GUIDES = os.path.join(KIT, "guides")
 PORTS = {"library": 8080, "maps": 8090}
@@ -258,6 +258,54 @@ def family_write(d):
     os.replace(tmp, FAMILY_FILE)
 
 
+# ---- Supplies page (home/supplies.html): household checkmarks, shared by every device -------------------------------
+SUPPLIES_FILE = os.path.join(FAMILY_DIR, "supplies.json")  # next to the Family page: personal, copied to the drive, not git
+SUPPLY_ID = re.compile(r"^[a-z0-9-]{1,40}$")
+
+
+def supplies_load():
+    try:
+        with open(SUPPLIES_FILE, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        d = {}
+    items = d.get("items") if isinstance(d.get("items"), dict) else {}
+    return {"people": d.get("people") if isinstance(d.get("people"), int) else 4,
+            "budget": d.get("budget") if isinstance(d.get("budget"), int) else 100,
+            "items": {k: v for k, v in items.items() if SUPPLY_ID.match(str(k)) and v in ("have", "skip")},
+            "saved": d.get("saved")}
+
+
+def supplies_update(body):
+    """Merge one change (a checkmark, people or budget) so two phones ticking different items never undo each other."""
+    d = supplies_load()
+    if "people" in body:
+        if isinstance(body["people"], bool) or not isinstance(body["people"], int) or not 1 <= body["people"] <= 30:
+            raise ValueError("People must be 1 to 30.")
+        d["people"] = body["people"]
+    if "budget" in body:
+        if isinstance(body["budget"], bool) or not isinstance(body["budget"], int) or not 1 <= body["budget"] <= 100000:
+            raise ValueError("Budget must be $1 to $100,000.")
+        d["budget"] = body["budget"]
+    items = body.get("items", {})
+    if not isinstance(items, dict) or len(items) > 500:
+        raise ValueError("Bad request.")
+    for k, v in items.items():
+        if not SUPPLY_ID.match(str(k)) or v not in ("have", "skip", ""):
+            raise ValueError("Bad request.")
+        if v:
+            d["items"][k] = v
+        else:
+            d["items"].pop(k, None)
+    d["saved"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    os.makedirs(FAMILY_DIR, exist_ok=True)
+    tmp = SUPPLIES_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=1)
+    os.replace(tmp, SUPPLIES_FILE)
+    return d
+
+
 def file_url(path):
     return "/files/" + urllib.parse.quote(os.path.relpath(path, KIT).replace(os.sep, "/"))
 
@@ -400,7 +448,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(family_json(self.is_local()))
         pages = {"/books": "books.html", "/movies": "movies.html", "/movies/add": "movies-add.html",
                  "/software": "software.html", "/settings": "settings.html", "/media.css": "media.css", "/media.js": "media.js",
-                 "/family": "family.html", "/family-crypto.js": "family-crypto.js"}
+                 "/family": "family.html", "/family-crypto.js": "family-crypto.js",
+                 "/supplies": "supplies.html", "/supplies-data.js": "supplies-data.js"}
+        if path == "/supplies.json":
+            return self.send_json(supplies_load())
         if path.rstrip("/") in pages:
             self.path = "/home/" + pages[path.rstrip("/")]
             return super().do_GET()
@@ -512,7 +563,7 @@ running may be an older version that doesn't have this page yet.</p>
 
     def do_POST(self):
         path = urllib.parse.unquote(self.path.split("?", 1)[0])
-        if path not in ("/settings.json", "/settings/rescan", "/family.json", "/family/forget"):
+        if path not in ("/settings.json", "/settings/rescan", "/family.json", "/family/forget", "/supplies.json"):
             return self.not_found()
         origin = urllib.parse.urlsplit(self.headers.get("Origin") or "")
         if origin.netloc and ((origin.port or 80) != self.server.server_address[1] or
@@ -520,6 +571,18 @@ running may be an older version that doesn't have this page yet.</p>
             return self.send_error_json(403, "Changes must come from the kit's own pages.")
         if path.startswith("/family"):
             return self.post_family(path)
+        if path == "/supplies.json":  # anyone on the home Wi-Fi may tick items off (it's a household list)
+            if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+                return self.send_error_json(415, "Send JSON.")
+            try:
+                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 1 << 16)) or b"{}")
+                assert isinstance(body, dict)
+                with FAMILY_LOCK:
+                    return self.send_json(supplies_update(body))
+            except (ValueError, AssertionError) as e:
+                return self.send_error_json(400, str(e) if isinstance(e, ValueError) and "must" in str(e) else "Bad request.")
+            except OSError as e:
+                return self.send_error_json(500, f"Could not save {SUPPLIES_FILE}: {e.strerror or e}")
         if path == "/settings/rescan":  # harmless: anyone may ask for a fresh look through the folders
             scan_folders()
             return self.send_json(settings_json(self.is_local()))

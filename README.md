@@ -1,4 +1,4 @@
-# FZ Prepper Drive (offline prepper kit v1.17.0)
+# FZ Prepper Drive (offline prepper kit v1.17.1)
 
 An offline "internet in a box" that runs on **Windows and Mac** computers with nothing installed, from a folder
 or a USB drive: an offline **library** (Wikipedia and more), the **Holy Bible (KJV)**, a **whole-US street map with
@@ -151,7 +151,7 @@ through them every time it starts; they show up on the Movies and Books pages fo
 Phones can see the list but can't change it. Press **Look again** after adding files.
 
 ### Emergency supplies (checklist, buying plan, water, storage)
-Open **🧰 Supplies** in the header bar (`http://localhost:8000/supplies`): 83 things to have for outages, storms, floods
+Open **🧰 Supplies** in the header bar (`http://localhost:8000/supplies`): 85 things to have for outages, storms, floods
 and evacuations, from water and flashlights to a power station, ham radio and a portable travel router for the kit,
 each with why, what to look for, a rough price and how to store it. Set the number of people and a monthly budget;
 check off what you have (✕ for what your home doesn't need) and the **Buying plan** tab spreads the rest over the

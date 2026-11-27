@@ -1,4 +1,4 @@
-/* family-crypto.js (offline prepper kit v1.17.0): locks and unlocks the Family page (home/family.html).
+/* family-crypto.js (offline prepper kit v1.17.1): locks and unlocks the Family page (home/family.html).
    Everything is encrypted in the browser; the kit's server only ever stores the locked file (family/family.enc.json)
    and never sees the password or the contents.
 

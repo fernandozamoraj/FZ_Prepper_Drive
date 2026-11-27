@@ -1,4 +1,4 @@
-"""catalog.py (offline prepper kit v1.17.0): the optional modules: books, audiobooks, movies and software.
+"""catalog.py (offline prepper kit v1.17.1): the optional modules: books, audiobooks, movies and software.
 
 None of this is part of `install all`. Pick what you want:
     kit books                       menu: choose categories or type keywords

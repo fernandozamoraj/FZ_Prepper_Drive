@@ -1,5 +1,10 @@
 # Changelog: offline prepper kit
 
+## 1.17.1 (2026-11-27)
+- Supplies: **Family tent** (set up indoors in the warm room to trap body heat; shelter if you must leave; freestanding,
+  never a heater inside) and **Sleeping pad** per person (R-value 4+ for winter) as their own items in Heat and
+  sleeping (85 items). The sleeping bag now points to the pad. Tested with `tests/test_supplies.py` and in the browser.
+
 ## 1.17.0 (2026-11-27)
 - **Emergency supplies page** (`/supplies`, 🧰 in the header bar, a card on the Home page): 83 items in 12 groups (water,
   food, first aid and medicine, light, power, heat and sleeping, cooking, communication, flood and water safety, tools and

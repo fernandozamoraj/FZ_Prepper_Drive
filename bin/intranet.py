@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.17.0).
+"""intranet: one home page for the whole offline prepper kit, plus the servers it links to (v1.17.1).
 
 Usage: intranet.py [port] [--open]   (default 8000). Ctrl+C (or closing the window) stops everything it started.
 Runs on macOS and Windows; the launchers on the drive ("Start Prepper Kit (Mac).command" / "(Windows).bat")
@@ -38,7 +38,7 @@ import kitplatform  # noqa: E402
 import catalog  # noqa: E402  (books, audiobooks, movies, software)
 import mimetypes  # noqa: E402
 
-VERSION = "1.17.0"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
+VERSION = "1.17.1"  # sent in /ports.json: nav.js tells people to restart when the running hub is older than the files
 KIT = kitplatform.KIT
 GUIDES = os.path.join(KIT, "guides")
 PORTS = {"library": 8080, "maps": 8090}

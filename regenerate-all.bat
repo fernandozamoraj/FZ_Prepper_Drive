@@ -1,5 +1,5 @@
 @echo off
-rem regenerate-all.bat (offline prepper kit v1.17.0): rebuild the whole kit from the internet on Windows.
+rem regenerate-all.bat (offline prepper kit v1.17.1): rebuild the whole kit from the internet on Windows.
 rem Needs ~200 GB free disk (NTFS or exFAT), 24+ GB RAM for the map/routing builds, and many hours.
 rem Safe to stop and re-run: finished steps are skipped and downloads resume.
 cd /d "%~dp0"

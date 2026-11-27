@@ -1,4 +1,4 @@
-/* supplies-data.js (offline prepper kit v1.17.0): the items on the Supplies page (home/supplies.html).
+/* supplies-data.js (offline prepper kit v1.17.1): the items on the Supplies page (home/supplies.html).
    Edit this file to add, change or remove items; the page and its plan follow. Each item:
      id     short unique name (letters, digits, dashes); it is how checkmarks are remembered, so don't rename it
      name   what it is            why    what it's for          look   what to look for when buying
@@ -180,8 +180,17 @@ window.SUPPLY_GROUPS = [
    look: 'Plastic sheeting or thick blankets for doors and windows, duct tape, a draft stopper; a camping tent set up indoors traps body heat.'},
   {id: 'sleepingbag', name: 'Warm sleeping bag', per: 'person', price: [50, 150], phase: 2,
    why: 'Lets people sleep warm in a house at 40°F with no heat at all.',
-   look: 'Rated 0–20°F, synthetic fill (stays warm when damp), plus a foam pad underneath.',
+   look: 'Rated 0–20°F, synthetic fill (stays warm when damp). Put a sleeping pad underneath (next item): the floor pulls heat out of you faster than the air.',
    store: 'Loose in a big bag or hung, not squeezed in its stuff sack (that flattens the insulation).'},
+  {id: 'sleeping-pad', name: 'Sleeping pad', per: 'person', price: [20, 60], phase: 2,
+   why: 'A cold floor or a bare mattress in an unheated house drains body heat all night; even a good sleeping bag is cold without insulation underneath.',
+   look: 'Closed-cell foam pads (cheap, can\'t pop) or an insulated air pad. Insulation is given as an R-value: R 4 or more for winter; two pads stack (add the R-values).',
+   store: 'Rolled or flat under a bed, with the sleeping bags.'},
+  {id: 'tent', name: 'Family tent', price: [80, 200], phase: 2,
+   why: 'Set up indoors in the warm room, a tent traps everyone\'s body heat in a small space and can be many degrees warmer than the room. It is also shelter if you have to leave, or if the house is damaged.',
+   look: 'A freestanding tent (stands without stakes, so it works on a floor) big enough for the whole household, with a rainfly. 4–6 people for a family of four.',
+   store: 'Dry, in its bag, with the stakes and poles counted. Set it up once a year, and dry it fully before packing if it gets wet (mildew).',
+   warn: 'Never use any heater, stove or candle inside a tent.'},
   {id: 'wool-blankets', name: 'Wool blankets', price: [25, 60], phase: 2,
    why: 'Warm even when damp, don\'t melt near flames, and last decades.',
    look: 'Two or more blankets with high wool content.'},
